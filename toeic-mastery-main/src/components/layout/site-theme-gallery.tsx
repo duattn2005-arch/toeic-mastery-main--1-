@@ -86,9 +86,24 @@ export function SiteThemeGallery({ currentThemeId, isPro }: { currentThemeId: st
     if (theme.id === currentThemeId) return;
 
     if (theme.tier === "PRO" && !isPro) {
-      toast("Nâng cấp Pro để mở khóa Live theme chuyển động này.", {
-        action: { label: "Nâng cấp", onClick: () => router.push("/pricing") },
-      });
+      // A plain toast() with an `action` only reacts to clicks on that one
+      // button — this custom render makes the entire toast a single click
+      // target for "Nâng cấp", which is what people actually try to tap.
+      toast.custom((id) => (
+        <button
+          type="button"
+          onClick={() => {
+            toast.dismiss(id);
+            router.push("/pricing");
+          }}
+          className="flex w-full items-center justify-between gap-3 rounded-[var(--border-radius)] border border-[var(--normal-border)] bg-[var(--normal-bg)] px-4 py-3 text-left text-sm text-[var(--normal-text)] shadow-lg"
+        >
+          <span>Nâng cấp Pro để mở khóa Live theme chuyển động này.</span>
+          <span className="shrink-0 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground">
+            Nâng cấp
+          </span>
+        </button>
+      ));
       return;
     }
 
