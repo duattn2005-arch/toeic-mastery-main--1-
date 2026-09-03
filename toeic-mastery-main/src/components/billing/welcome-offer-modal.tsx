@@ -8,9 +8,6 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { NEW_MEMBER_OFFER_PERCENT } from "@/lib/constants/billing";
 
-const VIEW_COUNT_KEY = "welcome_offer_view_count_v2";
-const MAX_VIEWS = 5;
-
 /** Signals to UpgradeNudgeModal that this modal has resolved its decision
  * for the session (shown-and-dismissed, or determined it won't show at
  * all) — lets the generic nudge wait its turn instead of stacking on top
@@ -71,34 +68,18 @@ function CountdownBox({ value, label }: { value: number; label: string }) {
   );
 }
 
-/** Shown up to MAX_VIEWS times per browser to eligible new Free accounts
- * (see getNewMemberOfferState — the real, server-checked eligibility this
- * modal only reflects). The countdown is a real per-account deadline read
- * from the server, not a per-visit reset, so closing and reopening the page
- * never buys extra time — only the *number of times it's shown* is tracked
- * client-side, via a view counter rather than the old "dismissed forever"
- * flag. */
+/** Shown on every visit to eligible Free accounts (see
+ * getNewMemberOfferState — the real, server-checked eligibility this modal
+ * only reflects: it stops appearing for good only once the account
+ * completes an actual purchase). The countdown is a rolling deadline reset
+ * on each render, not a one-shot window — purely cosmetic urgency. */
 export function WelcomeOfferModal({ deadline }: { deadline: string }) {
   const pathname = usePathname();
   const deadlineMs = React.useMemo(() => new Date(deadline).getTime(), [deadline]);
   const [open, setOpen] = React.useState(false);
-  const [viewNumber, setViewNumber] = React.useState<number | null>(null);
   const [remainingMs, setRemainingMs] = React.useState(() => deadlineMs - Date.now());
 
   React.useEffect(() => {
-    let count = MAX_VIEWS + 1;
-    try {
-      count = Number(localStorage.getItem(VIEW_COUNT_KEY) ?? "0") + 1;
-      localStorage.setItem(VIEW_COUNT_KEY, String(count));
-    } catch {
-      // localStorage unavailable (private mode, blocked storage) — fail open, just show it once.
-      count = 1;
-    }
-    if (count > MAX_VIEWS) {
-      markWelcomeOfferSessionDone();
-      return;
-    }
-
     // On /dashboard, DashboardTour's own welcome dialog can be open at the
     // exact same moment this effect runs — both are separate portal-rendered
     // dialogs with no shared parent to sequence them, so without this check
@@ -106,12 +87,8 @@ export function WelcomeOfferModal({ deadline }: { deadline: string }) {
     // hidden behind this modal). Wait for the tour to finish/skip before
     // opening here; give up and show anyway after TOUR_WAIT_TIMEOUT_MS so an
     // abandoned tour (closed tab, navigated away mid-tour) can't silently
-    // swallow the offer for the rest of its eligibility window.
+    // swallow the offer.
     if (pathname !== "/dashboard" || isDashboardTourDone()) {
-      // One-time sync with the browser's localStorage, not app state — same
-      // pattern as theme-toggle.tsx's mounted flag.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setViewNumber(count);
       setOpen(true);
       return;
     }
@@ -120,7 +97,6 @@ export function WelcomeOfferModal({ deadline }: { deadline: string }) {
     const id = setInterval(() => {
       if (isDashboardTourDone() || Date.now() - startedAt > TOUR_WAIT_TIMEOUT_MS) {
         clearInterval(id);
-        setViewNumber(count);
         setOpen(true);
       }
     }, TOUR_POLL_INTERVAL_MS);
@@ -140,7 +116,6 @@ export function WelcomeOfferModal({ deadline }: { deadline: string }) {
 
   if (remainingMs <= 0) return null;
   const countdown = toCountdown(remainingMs);
-  const isLastView = viewNumber === MAX_VIEWS;
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && dismiss()}>
@@ -211,12 +186,6 @@ export function WelcomeOfferModal({ deadline }: { deadline: string }) {
               <CountdownBox value={countdown.seconds} label="Giây" />
             </div>
           </div>
-
-          {isLastView && (
-            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">
-              🔥 Đây là lần cuối ưu đãi này xuất hiện — đừng bỏ lỡ!
-            </p>
-          )}
 
           <Button asChild size="lg" className="glow-pulse-primary w-full text-base font-semibold" onClick={dismiss}>
             <Link href="/pricing">

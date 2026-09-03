@@ -9,21 +9,24 @@ export interface NewMemberOfferState {
   deadline: string | null;
 }
 
-/** Free accounts get one shot at the welcome discount, within
- * NEW_MEMBER_OFFER_WINDOW_DAYS of signup and only before they've ever
- * declared a payment — once a Payment row exists (even PENDING/unpaid),
- * they've already used their shot, so a cancelled or abandoned checkout
- * can't be replayed for a fresh discount. */
+/** Free accounts get the welcome discount on every visit until they actually
+ * complete a purchase — a SUCCESS or REFUNDED payment permanently disqualifies
+ * them (a completed purchase was made, refund or not), but a PENDING/FAILED
+ * one does not, so an abandoned or cancelled checkout doesn't cost them the
+ * offer. `deadline` is a rolling countdown (now + NEW_MEMBER_OFFER_WINDOW_DAYS),
+ * not a one-shot window from signup — it's cosmetic urgency, not the actual
+ * eligibility check. */
 export async function getNewMemberOfferState(
-  profile: Pick<Profile, "id" | "plan" | "createdAt">
+  profile: Pick<Profile, "id" | "plan">
 ): Promise<NewMemberOfferState> {
   if (profile.plan !== "FREE") return { eligible: false, deadline: null };
 
-  const deadline = new Date(profile.createdAt.getTime() + NEW_MEMBER_OFFER_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-  if (deadline <= new Date()) return { eligible: false, deadline: null };
+  const completedPayment = await db.payment.findFirst({
+    where: { userId: profile.id, status: { in: ["SUCCESS", "REFUNDED"] } },
+    select: { id: true },
+  });
+  if (completedPayment) return { eligible: false, deadline: null };
 
-  const existingPayment = await db.payment.findFirst({ where: { userId: profile.id }, select: { id: true } });
-  if (existingPayment) return { eligible: false, deadline: null };
-
+  const deadline = new Date(Date.now() + NEW_MEMBER_OFFER_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   return { eligible: true, deadline: deadline.toISOString() };
 }

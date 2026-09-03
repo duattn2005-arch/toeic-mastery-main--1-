@@ -10,10 +10,14 @@ export const PRO_PLANS = {
 
 export type ProPlanKey = keyof typeof PRO_PLANS;
 
-/** Real, server-enforced welcome discount for brand-new Free accounts (see
- * src/lib/services/new-member-offer.ts) — not a cosmetic banner. Rounded to
- * the nearest 1,000đ to land on the same "ends in 9,000" style as PRO_PLANS. */
+/** Real, server-enforced welcome discount for Free accounts that have never
+ * completed a purchase (see src/lib/services/new-member-offer.ts) — not a
+ * cosmetic banner. Rounded to the nearest 1,000đ to land on the same "ends in
+ * 9,000" style as PRO_PLANS. */
 export const NEW_MEMBER_OFFER_PERCENT = 25;
+/** Length of the countdown shown each time the offer renders — rolling, not
+ * tied to signup date, since the offer itself is re-shown on every visit
+ * until the account actually buys (see getNewMemberOfferState). */
 export const NEW_MEMBER_OFFER_WINDOW_DAYS = 3;
 
 export function discountedPriceVnd(planKey: ProPlanKey): number {
