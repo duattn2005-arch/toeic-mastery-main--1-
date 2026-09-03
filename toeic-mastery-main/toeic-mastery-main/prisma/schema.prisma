@@ -1,0 +1,940 @@
+// TOEIC Mastery — Prisma schema
+// Postgres (Supabase). Auth users live in Supabase's auth.users table;
+// Profile.id is a 1:1 mirror of auth.users.id (uuid), kept in sync via a
+// Supabase trigger (see supabase/sql/002_profile_trigger.sql).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum PlanTier {
+  FREE
+  PRO
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum AttributionSource {
+  COOKIE
+  FINGERPRINT
+}
+
+enum CommissionStatus {
+  PENDING
+  WITHDRAWABLE
+  PAID
+  CANCELLED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}
+
+enum DeviceType {
+  COMPUTER
+  PHONE
+  TABLET
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum TestPart {
+  PART1
+  PART2
+  PART3
+  PART4
+  PART5
+  PART6
+  PART7
+}
+
+enum Skill {
+  LISTENING
+  READING
+}
+
+enum PassageFormat {
+  CONVERSATION
+  TALK
+  EMAIL
+  ADVERTISEMENT
+  MEMO
+  NOTICE
+  ARTICLE
+  CHAT
+  INVOICE
+  SCHEDULE
+  FORM
+  LETTER
+  OTHER
+}
+
+enum PassageLayout {
+  SINGLE
+  DOUBLE
+  TRIPLE
+}
+
+enum AttemptMode {
+  PRACTICE
+  EXAM
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  ABANDONED
+}
+
+enum BookmarkType {
+  QUESTION
+  VOCABULARY
+  GRAMMAR
+}
+
+enum ReviewRating {
+  AGAIN
+  HARD
+  GOOD
+  EASY
+}
+
+enum StudyActivity {
+  EXAM
+  PRACTICE
+  VOCABULARY
+  GRAMMAR
+  DICTIONARY
+}
+
+enum DictionarySource {
+  SEARCH
+  SELECTION
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+enum ThemePreference {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model Profile {
+  id                      String    @id @db.Uuid
+  email                   String    @unique
+  fullName                String?   @map("full_name")
+  avatarUrl               String?   @map("avatar_url")
+  role                    Role      @default(STUDENT)
+  plan                    PlanTier  @default(FREE)
+  proExpiresAt            DateTime? @map("pro_expires_at")
+  currentScore            Int?      @map("current_score")
+  targetScore             Int?      @map("target_score")
+  examDate                DateTime? @map("exam_date") @db.Date
+  dailyStudyTargetMinutes Int       @default(30) @map("daily_study_target_minutes")
+  streakCount             Int       @default(0) @map("streak_count")
+  longestStreak           Int       @default(0) @map("longest_streak")
+  lastStudyDate           DateTime? @map("last_study_date") @db.Date
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  referralCode            String?             @unique @map("referral_code")
+  referredByProfileId     String?             @map("referred_by_profile_id") @db.Uuid
+  referredAt              DateTime?           @map("referred_at")
+  attributionSource       AttributionSource?  @map("attribution_source")
+  isLateAttribution       Boolean             @default(false) @map("is_late_attribution")
+  firstProPaymentAt       DateTime?           @map("first_pro_payment_at")
+  successfulReferralCount Int                 @default(0) @map("successful_referral_count")
+  isFlaggedFraud          Boolean             @default(false) @map("is_flagged_fraud")
+  fraudNote               String?             @map("fraud_note")
+
+  settings          UserSettings?
+  attempts          Attempt[]
+  bookmarks         Bookmark[]
+  userVocabulary    UserVocabulary[]
+  studySessions     StudySession[]
+  scoreHistory      ScoreHistory[]
+  dictionaryHistory DictionaryHistory[]
+  answerRevealLogs  AnswerRevealLog[]
+  savedWords        SavedWord[]
+  questionReports   QuestionReport[]
+  createdTests      Test[]              @relation("TestAuthor")
+  pathDayProgress   UserVocabularyPathDayProgress[]
+  payments          Payment[]
+  redeemedCodes     ActivationCode[]
+
+  referredBy        Profile?           @relation("Referrals", fields: [referredByProfileId], references: [id], onDelete: SetNull)
+  referrals         Profile[]          @relation("Referrals")
+  bankAccount       BankAccount?
+  devices           Device[]
+  pushSubscriptions PushSubscription[]
+  referralClicks    ReferralClick[]
+  commissionsEarned Commission[]       @relation("CommissionsEarned")
+  commissionsFromMe Commission[]       @relation("CommissionsFromReferral")
+  withdrawals       Withdrawal[]
+
+  @@map("profiles")
+}
+
+model Payment {
+  id               String        @id @default(uuid()) @db.Uuid
+  userId           String        @map("user_id") @db.Uuid
+  orderId          String        @unique @map("order_id")
+  amount           Int
+  planDurationDays Int           @map("plan_duration_days")
+  status           PaymentStatus @default(PENDING)
+  vnpTransactionNo String?       @map("vnp_transaction_no")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  paidAt           DateTime?     @map("paid_at")
+  refundedAt       DateTime?     @map("refunded_at")
+
+  user       Profile     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  commission Commission?
+
+  @@index([userId])
+  @@map("payments")
+}
+
+/** Admin-generated single-use codes that grant Pro directly, as an
+ * alternative to the bank-transfer + manual-approval flow (e.g. for
+ * giveaways, partners, or a learner who paid through some other channel). */
+model ActivationCode {
+  id               String    @id @default(uuid()) @db.Uuid
+  code             String    @unique
+  planDurationDays Int       @map("plan_duration_days")
+  usedByUserId     String?   @map("used_by_user_id") @db.Uuid
+  usedAt           DateTime? @map("used_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  usedBy Profile? @relation(fields: [usedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("activation_codes")
+}
+
+model UserSettings {
+  id                     String          @id @default(uuid()) @db.Uuid
+  userId                 String          @unique @map("user_id") @db.Uuid
+  theme                  ThemePreference @default(LIGHT)
+  language               String          @default("vi")
+  audioAutoplay          Boolean         @default(true) @map("audio_autoplay")
+  defaultPlaybackSpeed   Float           @default(1) @map("default_playback_speed")
+  dictionaryPopupEnabled Boolean         @default(true) @map("dictionary_popup_enabled")
+  dailyReminderEnabled   Boolean         @default(false) @map("daily_reminder_enabled")
+  dailyReminderTime      String?         @map("daily_reminder_time")
+  createdAt              DateTime        @default(now()) @map("created_at")
+  updatedAt              DateTime        @updatedAt @map("updated_at")
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Tests / questions
+// ---------------------------------------------------------------------------
+
+model Test {
+  id                 String        @id @default(uuid()) @db.Uuid
+  slug               String        @unique
+  title              String
+  description        String?
+  thumbnailUrl       String?       @map("thumbnail_url")
+  difficulty         Difficulty    @default(MEDIUM)
+  status             ContentStatus @default(DRAFT)
+  isFullTest         Boolean       @default(true) @map("is_full_test")
+  durationMinutes    Int           @default(120) @map("duration_minutes")
+  totalQuestions     Int           @default(200) @map("total_questions")
+  listeningQuestions Int           @default(100) @map("listening_questions")
+  readingQuestions   Int           @default(100) @map("reading_questions")
+  attemptLimit       Int?          @map("attempt_limit")
+  allowReplay        Boolean       @default(true) @map("allow_replay")
+  createdById        String?       @map("created_by") @db.Uuid
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  createdBy Profile?      @relation("TestAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  sections  TestSection[]
+  passages  Passage[]
+  questions Question[]
+  attempts  Attempt[]
+
+  @@index([status])
+  @@index([isFullTest])
+  @@map("tests")
+}
+
+model TestSection {
+  id            String   @id @default(uuid()) @db.Uuid
+  testId        String   @map("test_id") @db.Uuid
+  part          TestPart
+  title         String
+  orderIndex    Int      @map("order_index")
+  questionCount Int      @default(0) @map("question_count")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  test      Test       @relation(fields: [testId], references: [id], onDelete: Cascade)
+  questions Question[]
+
+  @@unique([testId, part])
+  @@map("test_sections")
+}
+
+model Passage {
+  id         String        @id @default(uuid()) @db.Uuid
+  testId     String?       @map("test_id") @db.Uuid
+  part       TestPart
+  format     PassageFormat @default(OTHER)
+  layout     PassageLayout @default(SINGLE)
+  title      String?
+  texts      Json          @default("[]") // [{ label: string, content: string }]
+  audioUrl   String?       @map("audio_url")
+  imageUrl   String?       @map("image_url")
+  transcript String?
+  orderIndex Int           @default(0) @map("order_index")
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+
+  test      Test?      @relation(fields: [testId], references: [id], onDelete: Cascade)
+  questions Question[]
+
+  @@index([testId, part])
+  @@map("passages")
+}
+
+model Question {
+  id               String        @id @default(uuid()) @db.Uuid
+  testId           String?       @map("test_id") @db.Uuid
+  testSectionId    String?       @map("test_section_id") @db.Uuid
+  passageId        String?       @map("passage_id") @db.Uuid
+  grammarTopicId   String?       @map("grammar_topic_id") @db.Uuid
+  part             TestPart
+  orderIndex       Int           @default(0) @map("order_index")
+  prompt           String
+  imageUrl         String?       @map("image_url")
+  audioUrl         String?       @map("audio_url")
+  transcript       String?
+  correctLabel     String        @map("correct_label") @db.VarChar(1)
+  explanationVi    String        @map("explanation_vi")
+  grammarTopicSlug String?       @map("grammar_topic_slug")
+  vocabularyFocus  String[]      @default([]) @map("vocabulary_focus")
+  evidenceText     String?       @map("evidence_text")
+  difficulty       Difficulty    @default(MEDIUM)
+  status           ContentStatus @default(PUBLISHED)
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  test         Test?            @relation(fields: [testId], references: [id], onDelete: Cascade)
+  testSection  TestSection?     @relation(fields: [testSectionId], references: [id], onDelete: SetNull)
+  passage      Passage?         @relation(fields: [passageId], references: [id], onDelete: SetNull)
+  grammarTopic GrammarTopic?    @relation(fields: [grammarTopicId], references: [id], onDelete: SetNull)
+  options      QuestionOption[]
+  answers      AttemptAnswer[]
+  bookmarks    Bookmark[]
+  reports      QuestionReport[]
+  revealLogs   AnswerRevealLog[]
+
+  @@index([testId, part, orderIndex])
+  @@index([part])
+  @@map("questions")
+}
+
+model QuestionOption {
+  id                    String  @id @default(uuid()) @db.Uuid
+  questionId            String  @map("question_id") @db.Uuid
+  label                 String  @db.VarChar(1)
+  content               String
+  isCorrect             Boolean @default(false) @map("is_correct")
+  distractorExplanation String? @map("distractor_explanation")
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, label])
+  @@map("question_options")
+}
+
+// ---------------------------------------------------------------------------
+// Attempts
+// ---------------------------------------------------------------------------
+
+model Attempt {
+  id                   String        @id @default(uuid()) @db.Uuid
+  userId               String        @map("user_id") @db.Uuid
+  testId               String        @map("test_id") @db.Uuid
+  mode                 AttemptMode   @default(EXAM)
+  status               AttemptStatus @default(IN_PROGRESS)
+  currentQuestionIndex Int           @default(0) @map("current_question_index")
+  allowedDurationSec   Int           @map("allowed_duration_sec")
+  remainingSec         Int           @map("remaining_sec")
+  listeningScore       Int?          @map("listening_score")
+  readingScore         Int?          @map("reading_score")
+  totalScore           Int?          @map("total_score")
+  correctCount         Int?          @map("correct_count")
+  wrongCount           Int?          @map("wrong_count")
+  skippedCount         Int?          @map("skipped_count")
+  startedAt            DateTime      @default(now()) @map("started_at")
+  lastSyncedAt         DateTime      @default(now()) @map("last_synced_at")
+  submittedAt          DateTime?     @map("submitted_at")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
+
+  user         Profile         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  test         Test            @relation(fields: [testId], references: [id], onDelete: Cascade)
+  answers      AttemptAnswer[]
+  scoreHistory ScoreHistory[]
+  studySession StudySession?
+
+  @@index([userId, status])
+  @@index([testId])
+  @@map("attempts")
+}
+
+model AttemptAnswer {
+  id            String    @id @default(uuid()) @db.Uuid
+  attemptId     String    @map("attempt_id") @db.Uuid
+  questionId    String    @map("question_id") @db.Uuid
+  selectedLabel String?   @map("selected_label") @db.VarChar(1)
+  isCorrect     Boolean?  @map("is_correct")
+  isFlagged     Boolean   @default(false) @map("is_flagged")
+  timeSpentSec  Int       @default(0) @map("time_spent_sec")
+  answeredAt    DateTime? @map("answered_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  attempt  Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@map("attempt_answers")
+}
+
+// ---------------------------------------------------------------------------
+// Bookmarks / reports
+// ---------------------------------------------------------------------------
+
+model Bookmark {
+  id               String       @id @default(uuid()) @db.Uuid
+  userId           String       @map("user_id") @db.Uuid
+  type             BookmarkType
+  questionId       String?      @map("question_id") @db.Uuid
+  vocabularyWordId String?      @map("vocabulary_word_id") @db.Uuid
+  grammarLessonId  String?      @map("grammar_lesson_id") @db.Uuid
+  note             String?
+  createdAt        DateTime     @default(now()) @map("created_at")
+
+  user           Profile         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question       Question?       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  vocabularyWord VocabularyWord? @relation(fields: [vocabularyWordId], references: [id], onDelete: Cascade)
+  grammarLesson  GrammarLesson?  @relation(fields: [grammarLessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type, questionId, vocabularyWordId, grammarLessonId])
+  @@map("bookmarks")
+}
+
+model QuestionReport {
+  id         String       @id @default(uuid()) @db.Uuid
+  userId     String       @map("user_id") @db.Uuid
+  questionId String       @map("question_id") @db.Uuid
+  reason     String
+  message    String?
+  status     ReportStatus @default(OPEN)
+  createdAt  DateTime     @default(now()) @map("created_at")
+  resolvedAt DateTime?    @map("resolved_at")
+
+  user     Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("question_reports")
+}
+
+// ---------------------------------------------------------------------------
+// Vocabulary
+// ---------------------------------------------------------------------------
+
+model VocabularyTopic {
+  id          String   @id @default(uuid()) @db.Uuid
+  slug        String   @unique
+  name        String
+  description String?
+  icon        String?
+  /** Groups topics into sections on /vocabulary/topics (e.g. "Theo band
+   * điểm", "Theo Part", "Cụm từ cố định & thường gặp"). Null for the
+   * original context-based topics (office, travel, ...), which render in
+   * their own ungrouped section. Mirrors GrammarTopic.category. */
+  category    String?
+  orderIndex  Int      @default(0) @map("order_index")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  words VocabularyWord[]
+
+  @@map("vocabulary_topics")
+}
+
+model VocabularyWord {
+  id           String     @id @default(uuid()) @db.Uuid
+  topicId      String     @map("topic_id") @db.Uuid
+  word         String
+  ipa          String?
+  /** Optional so quick Quizlet-style bulk import (term + meaning only) works
+   * without forcing every field up front — an admin can flesh a word out
+   * with part of speech/examples later via edit. */
+  partOfSpeech String?    @map("part_of_speech")
+  meaningVi    String     @map("meaning_vi")
+  definitionEn String?    @map("definition_en")
+  exampleEn    String?    @map("example_en")
+  exampleVi    String?    @map("example_vi")
+  synonyms     String[]   @default([])
+  antonyms     String[]   @default([])
+  collocations String[]   @default([])
+  audioUrlUs   String?    @map("audio_url_us")
+  audioUrlUk   String?    @map("audio_url_uk")
+  difficulty   Difficulty @default(MEDIUM)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  topic          VocabularyTopic         @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  userVocabulary UserVocabulary[]
+  bookmarks      Bookmark[]
+  pathDayLinks   VocabularyPathDayWord[]
+
+  @@unique([topicId, word])
+  @@index([topicId])
+  @@map("vocabulary_words")
+}
+
+// ---------------------------------------------------------------------------
+// Vocabulary "20-day path" — a Duolingo-style sequential curriculum layered
+// on top of the existing topic-based VocabularyWord data (no new word
+// content; each day just curates/orders a slice of existing words).
+// ---------------------------------------------------------------------------
+
+model VocabularyPath {
+  id          String   @id @default(uuid()) @db.Uuid
+  slug        String   @unique
+  title       String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  days VocabularyPathDay[]
+
+  @@map("vocabulary_paths")
+}
+
+model VocabularyPathDay {
+  id        String   @id @default(uuid()) @db.Uuid
+  pathId    String   @map("path_id") @db.Uuid
+  dayNumber Int      @map("day_number")
+  /** Groups days into a 5-day arc for display (e.g. "Khởi Đầu", "Tăng Tốc"). */
+  tierLabel String   @map("tier_label")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  path     VocabularyPath                  @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  words    VocabularyPathDayWord[]
+  progress UserVocabularyPathDayProgress[]
+
+  @@unique([pathId, dayNumber])
+  @@map("vocabulary_path_days")
+}
+
+model VocabularyPathDayWord {
+  id               String @id @default(uuid()) @db.Uuid
+  dayId            String @map("day_id") @db.Uuid
+  vocabularyWordId String @map("vocabulary_word_id") @db.Uuid
+  orderIndex       Int    @default(0) @map("order_index")
+
+  day  VocabularyPathDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  word VocabularyWord    @relation(fields: [vocabularyWordId], references: [id], onDelete: Cascade)
+
+  @@unique([dayId, vocabularyWordId])
+  @@map("vocabulary_path_day_words")
+}
+
+/** stepsCompleted: 0-3, one per step (Học/Luyện tập/Kiểm tra). Day counts as
+ * done, and the next day unlocks, once stepsCompleted reaches 3. `stars`
+ * (0-3) is set from the step-3 quiz score when that step completes. */
+model UserVocabularyPathDayProgress {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  dayId          String    @map("day_id") @db.Uuid
+  stepsCompleted Int       @default(0) @map("steps_completed")
+  stars          Int       @default(0)
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  user Profile           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day  VocabularyPathDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dayId])
+  @@map("user_vocabulary_path_day_progress")
+}
+
+model UserVocabulary {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  vocabularyWordId String    @map("vocabulary_word_id") @db.Uuid
+  repetitions      Int       @default(0)
+  intervalDays     Int       @default(0) @map("interval_days")
+  easeFactor       Float     @default(2.5) @map("ease_factor")
+  nextReviewDate   DateTime  @default(now()) @map("next_review_date") @db.Date
+  lastReviewedAt   DateTime? @map("last_reviewed_at")
+  isLearned        Boolean   @default(false) @map("is_learned")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  user           Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vocabularyWord VocabularyWord     @relation(fields: [vocabularyWordId], references: [id], onDelete: Cascade)
+  reviews        VocabularyReview[]
+
+  @@unique([userId, vocabularyWordId])
+  @@index([userId, nextReviewDate])
+  @@map("user_vocabulary")
+}
+
+model VocabularyReview {
+  id               String       @id @default(uuid()) @db.Uuid
+  userVocabularyId String       @map("user_vocabulary_id") @db.Uuid
+  rating           ReviewRating
+  previousInterval Int          @map("previous_interval")
+  newInterval      Int          @map("new_interval")
+  previousEase     Float        @map("previous_ease")
+  newEase          Float        @map("new_ease")
+  reviewedAt       DateTime     @default(now()) @map("reviewed_at")
+
+  userVocabulary UserVocabulary @relation(fields: [userVocabularyId], references: [id], onDelete: Cascade)
+
+  @@index([userVocabularyId])
+  @@map("vocabulary_reviews")
+}
+
+// ---------------------------------------------------------------------------
+// Grammar
+// ---------------------------------------------------------------------------
+
+model GrammarTopic {
+  id         String   @id @default(uuid()) @db.Uuid
+  slug       String   @unique
+  title      String
+  category   String?
+  summary    String?
+  orderIndex Int      @default(0) @map("order_index")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  lessons   GrammarLesson[]
+  questions Question[]
+
+  @@map("grammar_topics")
+}
+
+model GrammarLesson {
+  id        String   @id @default(uuid()) @db.Uuid
+  topicId   String   @map("topic_id") @db.Uuid
+  slug      String   @unique
+  title     String
+  theory    String
+  tips      String[] @default([])
+  examples  Json     @default("[]") // [{ en: string, vi: string }]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  topic     GrammarTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  bookmarks Bookmark[]
+
+  @@index([topicId])
+  @@map("grammar_lessons")
+}
+
+// ---------------------------------------------------------------------------
+// Study tracking / analytics
+// ---------------------------------------------------------------------------
+
+model StudySession {
+  id           String        @id @default(uuid()) @db.Uuid
+  userId       String        @map("user_id") @db.Uuid
+  activityType StudyActivity @map("activity_type")
+  durationSec  Int           @default(0) @map("duration_sec")
+  startedAt    DateTime      @default(now()) @map("started_at")
+  endedAt      DateTime?     @map("ended_at")
+  /** Set only for EXAM/PRACTICE sessions — lets the sync/submit routes keep
+   * durationSec current as the attempt progresses, instead of it being
+   * permanently stuck at 0 from creation time. */
+  attemptId    String?       @unique @map("attempt_id") @db.Uuid
+  metadata     Json?
+
+  user    Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempt Attempt? @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startedAt])
+  @@map("study_sessions")
+}
+
+model ScoreHistory {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  attemptId      String?  @map("attempt_id") @db.Uuid
+  listeningScore Int      @map("listening_score")
+  readingScore   Int      @map("reading_score")
+  totalScore     Int      @map("total_score")
+  recordedAt     DateTime @default(now()) @map("recorded_at")
+
+  user    Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempt Attempt? @relation(fields: [attemptId], references: [id], onDelete: SetNull)
+
+  @@index([userId, recordedAt])
+  @@map("score_history")
+}
+
+// ---------------------------------------------------------------------------
+// Dictionary
+// ---------------------------------------------------------------------------
+
+model DictionaryEntry {
+  id           String   @id @default(uuid()) @db.Uuid
+  word         String   @unique
+  ipa          String?
+  partOfSpeech String?  @map("part_of_speech")
+  meaningVi    String?  @map("meaning_vi")
+  definitions  Json     @default("[]") @map("definitions_en")
+  synonyms     String[] @default([])
+  antonyms     String[] @default([])
+  examples     Json     @default("[]")
+  wordFamily   Json     @default("[]") @map("word_family")
+  collocations String[] @default([])
+  audioUrlUs   String?  @map("audio_url_us")
+  audioUrlUk   String?  @map("audio_url_uk")
+  provider     String   @default("dictionaryapi")
+  fetchedAt    DateTime @default(now()) @map("fetched_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("dictionary_entries")
+}
+
+model DictionaryHistory {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  word      String
+  source    DictionarySource
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("dictionary_history")
+}
+
+/** One row per "Chữa tức thì" (reveal answer + explanation) use in Practice
+ * mode — same shape/purpose as DictionaryHistory: a plain event log counted
+ * for the free-tier daily cap rather than a separate counter to keep in
+ * sync. */
+model AnswerRevealLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  questionId String   @map("question_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user     Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("answer_reveal_logs")
+}
+
+model SavedWord {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  word       String
+  note       String?
+  isFavorite Boolean  @default(false) @map("is_favorite")
+  /** Learner-authored meaning/example (Quizlet-style "add your own word") —
+   * set when the word was added directly rather than saved from a
+   * dictionary lookup. Takes precedence over the DictionaryEntry cache when
+   * present, so a learner isn't limited to words the dictionary API knows. */
+  meaningVi  String?  @map("meaning_vi")
+  exampleEn  String?  @map("example_en")
+  /** Free-text, learner-named folder (e.g. "OFFICE") — deliberately not a
+   * separate relational model: a category only ever exists as a string a
+   * handful of SavedWord rows happen to share, so renaming/deleting one is
+   * just a bulk string update, no cascade/orphan bookkeeping needed. Null =
+   * uncategorized. */
+  category   String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, word])
+  @@map("saved_words")
+}
+
+// ---------------------------------------------------------------------------
+// Scoring configuration
+// ---------------------------------------------------------------------------
+
+model ScoreConversionTable {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String
+  isActive       Boolean  @default(false) @map("is_active")
+  listeningTable Json     @map("listening_table") // { "0": 5, "1": 10, ... "100": 495 }
+  readingTable   Json     @map("reading_table")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("score_conversion_tables")
+}
+
+// ---------------------------------------------------------------------------
+// Affiliate / referral, devices, push notifications
+// ---------------------------------------------------------------------------
+
+model ReferralClick {
+  id                String   @id @default(uuid()) @db.Uuid
+  referralCode      String   @map("referral_code")
+  referrerProfileId String   @map("referrer_profile_id") @db.Uuid
+  ipAddress         String   @map("ip_address")
+  userAgent         String   @map("user_agent")
+  fingerprintHash   String   @map("fingerprint_hash")
+  landingPath       String?  @map("landing_path")
+  clickedAt         DateTime @default(now()) @map("clicked_at")
+
+  referrer Profile @relation(fields: [referrerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([fingerprintHash, clickedAt])
+  @@index([referrerProfileId, clickedAt])
+  @@map("referral_clicks")
+}
+
+model Commission {
+  id                String           @id @default(uuid()) @db.Uuid
+  referrerId        String           @map("referrer_id") @db.Uuid
+  referredId        String           @map("referred_id") @db.Uuid
+  paymentId         String           @unique @map("payment_id") @db.Uuid
+  amount            Int
+  ratePercent       Int              @map("rate_percent")
+  tier              String?
+  isLateAttribution Boolean          @default(false) @map("is_late_attribution")
+  status            CommissionStatus @default(PENDING)
+  withdrawalId      String?          @map("withdrawal_id") @db.Uuid
+  fraudNote         String?          @map("fraud_note")
+  confirmAt         DateTime         @map("confirm_at")
+  confirmedAt       DateTime?        @map("confirmed_at")
+  cancelledAt       DateTime?        @map("cancelled_at")
+  createdAt         DateTime         @default(now()) @map("created_at")
+
+  referrer   Profile     @relation("CommissionsEarned", fields: [referrerId], references: [id], onDelete: Cascade)
+  referred   Profile     @relation("CommissionsFromReferral", fields: [referredId], references: [id], onDelete: Cascade)
+  payment    Payment     @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  withdrawal Withdrawal? @relation(fields: [withdrawalId], references: [id], onDelete: SetNull)
+
+  @@index([referrerId, status])
+  @@index([status, confirmAt])
+  @@map("commissions")
+}
+
+model BankAccount {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @unique @map("user_id") @db.Uuid
+  bankName      String   @map("bank_name")
+  accountNumber String   @map("account_number")
+  accountHolder String   @map("account_holder")
+  qrImageUrl    String?  @map("qr_image_url")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([accountNumber])
+  @@map("bank_accounts")
+}
+
+model Withdrawal {
+  id            String           @id @default(uuid()) @db.Uuid
+  userId        String           @map("user_id") @db.Uuid
+  amount        Int
+  status        WithdrawalStatus @default(PENDING)
+  bankName      String           @map("bank_name")
+  accountNumber String           @map("account_number")
+  accountHolder String           @map("account_holder")
+  adminNote     String?          @map("admin_note")
+  requestedAt   DateTime         @default(now()) @map("requested_at")
+  processedAt   DateTime?        @map("processed_at")
+
+  user        Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  commissions Commission[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("withdrawals")
+}
+
+model Device {
+  id              String     @id @default(uuid()) @db.Uuid
+  userId          String     @map("user_id") @db.Uuid
+  type            DeviceType
+  label           String
+  fingerprintHash String     @map("fingerprint_hash")
+  firstSeenAt     DateTime   @default(now()) @map("first_seen_at")
+  lastSeenAt      DateTime   @default(now()) @map("last_seen_at")
+  lastIp          String?    @map("last_ip")
+  deletedAt       DateTime?  @map("deleted_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fingerprintHash])
+  @@index([userId])
+  @@map("devices")
+}
+
+model PushSubscription {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?   @map("user_agent")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastSentAt DateTime? @map("last_sent_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}

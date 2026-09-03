@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 800">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a3b6b"/>
+      <stop offset="0.5" stop-color="#a8618f"/>
+      <stop offset="0.78" stop-color="#e8a95c"/>
+      <stop offset="1" stop-color="#f6cf8a"/>
+    </linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="40"/></filter>
+  </defs>
+  <rect width="1600" height="800" fill="url(#sky)"/>
+  <circle cx="1000" cy="560" r="160" fill="#fbe3a8" opacity="0.65" filter="url(#glow)"/>
+  <circle cx="1000" cy="560" r="95" fill="#fdeec0"/>
+  <g fill="#241830" opacity="0.9">
+    <rect y="700" width="1600" height="100"/>
+  </g>
+  <g fill="#231627">
+    <rect x="920" y="380" width="34" height="330" rx="4"/>
+    <rect x="1150" y="380" width="34" height="330" rx="4"/>
+    <rect x="880" y="380" width="330" height="34" rx="4"/>
+    <rect x="900" y="440" width="290" height="26" rx="4"/>
+    <rect x="1010" y="380" width="10" height="330"/>
+  </g>
+  <g fill="#1c1420" opacity="0.85">
+    <path d="M300 700 C300 660 330 640 355 640 C380 640 405 660 405 700 Z"/>
+    <circle cx="330" cy="628" r="16"/>
+    <path d="M330 612 L330 596" stroke="#1c1420" stroke-width="6"/>
+    <path d="M310 600 L318 590" stroke="#1c1420" stroke-width="6"/>
+  </g>
+</svg>
