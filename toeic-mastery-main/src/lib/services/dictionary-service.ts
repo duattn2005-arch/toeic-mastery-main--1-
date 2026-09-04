@@ -9,8 +9,12 @@ export type { DictionaryDefinition, DictionaryExample, DictionaryResult };
 /** Thrown for a transient upstream failure (network error, timeout, rate
  * limit, 5xx) — distinct from a genuine "this word doesn't exist" (which
  * resolves to `null`, not an exception), so callers can tell a user "thử lại
- * sau" instead of wrongly implying the word itself is invalid. */
+ * sau" instead of wrongly implying the word itself is invalid. Only
+ * surfaces when every provider in the chain fails the same way; any one of
+ * them returning a real result (or a clean "not found") is enough. */
 export class DictionaryLookupError extends Error {}
+
+type RawResult = Omit<DictionaryResult, "meaningVi" | "source">;
 
 /** Prisma's Json input type requires structural compatibility our narrow
  * interfaces don't declare (no index signature) — this is a plain data cast. */
@@ -20,7 +24,7 @@ function toJsonInput<T>(value: T): Prisma.InputJsonValue {
 
 interface DictionaryProvider {
   name: string;
-  lookup(word: string): Promise<Omit<DictionaryResult, "meaningVi" | "source"> | null>;
+  lookup(word: string): Promise<RawResult | null>;
 }
 
 interface DictionaryApiPhonetic {
@@ -46,7 +50,10 @@ interface DictionaryApiEntry {
   meanings?: DictionaryApiMeaning[];
 }
 
-/** Free, keyless dictionary API — https://dictionaryapi.dev */
+/** Free, keyless dictionary API — https://dictionaryapi.dev. Rich (audio,
+ * IPA, synonyms/antonyms) but mostly covers headwords, not every inflected
+ * form, and this VPS's network can't always reach it (see WiktionaryProvider
+ * below, which exists specifically to cover both gaps). */
 class DictionaryApiDevProvider implements DictionaryProvider {
   name = "dictionaryapi";
 
@@ -111,16 +118,134 @@ class DictionaryApiDevProvider implements DictionaryProvider {
   }
 }
 
-function resolveProvider(): DictionaryProvider {
+interface WiktionaryDefinition {
+  definition: string;
+  parsedExamples?: { example: string }[];
+}
+interface WiktionarySense {
+  partOfSpeech: string;
+  language: string;
+  definitions: WiktionaryDefinition[];
+}
+/** Keyed by language code — the endpoint returns every language section for
+ * the page, not just English. */
+type WiktionaryResponse = Record<string, WiktionarySense[]>;
+
+/** Strips the HTML Wiktionary's REST API embeds in definition/example text
+ * (links, <i> mentions, category markers) down to plain text. Not a full
+ * sanitizer — this only ever feeds into our own JSX as a text string, never
+ * dangerouslySetInnerHTML, so leftover markup would just render as visible
+ * text rather than execute. */
+function stripWiktionaryHtml(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Free, keyless Wikimedia REST API — https://en.wiktionary.org. No audio,
+ * IPA, or synonym/antonym data (that endpoint doesn't expose them), but it
+ * natively has entries for inflected forms dictionaryapi.dev often lacks
+ * (e.g. "applications" resolves to "plural of application"), and lives on a
+ * different host than the one this VPS currently can't reach — see
+ * DictionaryService.lookup for how the two are combined. */
+class WiktionaryProvider implements DictionaryProvider {
+  name = "wiktionary";
+
+  async lookup(word: string) {
+    let res: Response;
+    try {
+      res = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word)}`, {
+        signal: AbortSignal.timeout(6000),
+        next: { revalidate: false },
+      });
+    } catch (err) {
+      throw new DictionaryLookupError(err instanceof Error ? err.message : "network error");
+    }
+
+    if (res.status === 404) return null;
+    if (!res.ok) throw new DictionaryLookupError(`upstream status ${res.status}`);
+
+    const body = (await res.json()) as WiktionaryResponse;
+    const senses = body.en;
+    if (!senses || senses.length === 0) return null;
+
+    const definitions: DictionaryDefinition[] = [];
+    const examples: DictionaryExample[] = [];
+
+    for (const sense of senses) {
+      const partOfSpeech = sense.partOfSpeech?.toLowerCase() || undefined;
+      for (const def of sense.definitions) {
+        const text = stripWiktionaryHtml(def.definition);
+        if (!text) continue;
+        const example = def.parsedExamples?.[0] ? stripWiktionaryHtml(def.parsedExamples[0].example) : undefined;
+        definitions.push({ partOfSpeech: partOfSpeech ?? "", definition: text, example });
+        if (example) examples.push({ en: example });
+      }
+    }
+    if (definitions.length === 0) return null;
+
+    return {
+      word,
+      ipa: null,
+      partOfSpeech: definitions[0]?.partOfSpeech || null,
+      audioUrlUs: null,
+      audioUrlUk: null,
+      definitions: definitions.slice(0, 8),
+      synonyms: [],
+      antonyms: [],
+      examples: examples.slice(0, 5),
+      wordFamily: [],
+      collocations: [],
+    };
+  }
+}
+
+function resolveProviders(): DictionaryProvider[] {
   const provider = (process.env.DICTIONARY_PROVIDER ?? "dictionaryapi").toLowerCase();
   switch (provider) {
     // Add a licensed provider here (e.g. Merriam-Webster, Oxford Dictionaries
-    // API) by implementing DictionaryProvider and adding a case — no call
-    // sites need to change.
+    // API) by implementing DictionaryProvider and prepending it — Wiktionary
+    // stays last as the free fallback regardless of which primary is picked.
     case "dictionaryapi":
     default:
-      return new DictionaryApiDevProvider();
+      return [new DictionaryApiDevProvider(), new WiktionaryProvider()];
   }
+}
+
+/** Cheap suffix-stripping for common English inflections — tried only after
+ * every provider above has already failed to find the word as typed (most
+ * inflected forms resolve directly via Wiktionary already; this is the last
+ * resort for the ones that don't). Not a real lemmatizer, just enough
+ * candidate guesses to catch the common cases; whichever candidate a
+ * provider actually recognizes wins. */
+function candidateBaseForms(word: string): string[] {
+  const candidates = new Set<string>();
+  const doubledConsonant = /([a-z])\1(ed|ing)$/;
+
+  if (word.endsWith("ies") && word.length > 4) candidates.add(word.slice(0, -3) + "y");
+  if (word.endsWith("es") && word.length > 3) candidates.add(word.slice(0, -2));
+  if (word.endsWith("s") && !word.endsWith("ss") && word.length > 3) candidates.add(word.slice(0, -1));
+
+  if (word.endsWith("ied") && word.length > 4) candidates.add(word.slice(0, -3) + "y");
+  if (word.endsWith("ed") && word.length > 3) {
+    candidates.add(word.slice(0, -2));
+    candidates.add(word.slice(0, -1));
+    if (doubledConsonant.test(word)) candidates.add(word.slice(0, -3));
+  }
+
+  if (word.endsWith("ing") && word.length > 4) {
+    candidates.add(word.slice(0, -3));
+    candidates.add(word.slice(0, -3) + "e");
+    if (doubledConsonant.test(word)) candidates.add(word.slice(0, -4));
+  }
+
+  candidates.delete(word);
+  return [...candidates];
 }
 
 const CACHE_TTL_DAYS = 60;
@@ -160,11 +285,11 @@ function fromCachedRow(cached: {
 }
 
 export class DictionaryService {
-  private provider: DictionaryProvider;
+  private providers: DictionaryProvider[];
   private translation: TranslationService;
 
-  constructor(provider: DictionaryProvider = resolveProvider(), translation = new TranslationService()) {
-    this.provider = provider;
+  constructor(providers: DictionaryProvider[] = resolveProviders(), translation = new TranslationService()) {
+    this.providers = providers;
     this.translation = translation;
   }
 
@@ -178,6 +303,23 @@ export class DictionaryService {
     if (!translated) return null;
     if (translated.trim().toLowerCase() === text.trim().toLowerCase()) return null;
     return translated;
+  }
+
+  /** Tries every provider in order for one exact word — the first real
+   * result (or clean "not found") wins. A provider throwing (network/5xx)
+   * just moves on to the next one instead of failing the whole lookup;
+   * `lastError` is only surfaced by the caller if every provider threw. */
+  private async fetchFromProviders(word: string): Promise<{ result: RawResult | null; providerName: string | null; lastError: unknown }> {
+    let lastError: unknown = null;
+    for (const provider of this.providers) {
+      try {
+        const found = await provider.lookup(word);
+        if (found) return { result: found, providerName: provider.name, lastError: null };
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    return { result: null, providerName: null, lastError };
   }
 
   async lookup(rawWord: string): Promise<DictionaryResult | null> {
@@ -203,17 +345,35 @@ export class DictionaryService {
       return fromCachedRow(cached);
     }
 
-    let fresh;
-    try {
-      fresh = await this.provider.lookup(word);
-    } catch (err) {
-      // Upstream is down/rate-limited right now — serve stale cache instead
-      // of telling the user the word doesn't exist, if we have anything at
-      // all to fall back to.
-      if (cached) return fromCachedRow(cached);
-      throw err instanceof DictionaryLookupError ? err : new DictionaryLookupError(String(err));
+    let { result: fresh, providerName, lastError } = await this.fetchFromProviders(word);
+
+    // Not found as typed — try a few common-inflection guesses (running ->
+    // run, applications -> application) before giving up. Every provider
+    // already covers a lot of this natively (Wiktionary especially), so
+    // this is a last resort, not the primary path.
+    if (!fresh) {
+      for (const candidate of candidateBaseForms(word)) {
+        const attempt = await this.fetchFromProviders(candidate);
+        if (attempt.result) {
+          fresh = attempt.result;
+          providerName = attempt.providerName;
+          break;
+        }
+      }
     }
-    if (!fresh) return null;
+
+    if (!fresh) {
+      // Every provider (and every inflection guess) came back empty. If any
+      // of those failures was a real network/upstream error rather than a
+      // clean "not found", that's the more honest reason — serve stale
+      // cache if we have it, else surface it as transient rather than
+      // implying the word itself doesn't exist.
+      if (lastError) {
+        if (cached) return fromCachedRow(cached);
+        throw lastError instanceof DictionaryLookupError ? lastError : new DictionaryLookupError(String(lastError));
+      }
+      return null;
+    }
 
     const meaningVi = await this.translateOrNull(fresh.definitions[0]?.definition ?? word);
     const examples: DictionaryExample[] = await Promise.all(
@@ -238,7 +398,7 @@ export class DictionaryService {
         examples: toJsonInput(examples),
         wordFamily: toJsonInput(fresh.wordFamily),
         collocations: fresh.collocations,
-        provider: this.provider.name,
+        provider: providerName ?? "unknown",
       },
       update: {
         ipa: fresh.ipa,
@@ -252,7 +412,7 @@ export class DictionaryService {
         examples: toJsonInput(examples),
         wordFamily: toJsonInput(fresh.wordFamily),
         collocations: fresh.collocations,
-        provider: this.provider.name,
+        provider: providerName ?? "unknown",
         fetchedAt: new Date(),
       },
     });

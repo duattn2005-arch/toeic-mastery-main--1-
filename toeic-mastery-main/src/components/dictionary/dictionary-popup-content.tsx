@@ -118,6 +118,16 @@ export function DictionaryPopupContent({
         </div>
       )}
 
+      {data.synonymsLocked && (
+        <Link
+          href="/pricing"
+          onClick={onNavigate}
+          className="flex items-center gap-1.5 rounded-lg bg-accent/50 px-2.5 py-1.5 text-xs font-medium text-primary hover:underline"
+        >
+          <Crown className="size-3.5" /> Nâng cấp Pro để xem từ đồng nghĩa & trái nghĩa
+        </Link>
+      )}
+
       {!compact && data.collocations.length > 0 && (
         <div className="text-xs text-muted-foreground">
           <span className="font-medium text-foreground">Collocations: </span>

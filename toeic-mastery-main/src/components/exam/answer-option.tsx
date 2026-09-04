@@ -30,10 +30,18 @@ export function AnswerOptionList({
           <button
             key={option.label}
             type="button"
-            disabled={disabled}
-            onClick={() => onSelect(option.label)}
+            // Not the native `disabled` attribute — browsers block text
+            // selection entirely inside a disabled form control, which was
+            // silently breaking the bôi đen (highlight-to-look-up) dictionary
+            // everywhere this list renders read-only (history review, a
+            // mistake already answered). aria-disabled + a no-op click keeps
+            // the same "can't change your answer" behavior while leaving the
+            // option text selectable.
+            aria-disabled={disabled}
+            onClick={disabled ? undefined : () => onSelect(option.label)}
             className={cn(
-              "flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-colors disabled:cursor-not-allowed",
+              "flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-colors",
+              disabled && "cursor-default",
               isRevealedCorrect
                 ? "border-success bg-success/10"
                 : isRevealedWrong

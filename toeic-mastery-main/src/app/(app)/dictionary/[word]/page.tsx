@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { requireUser, isPro } from "@/lib/auth";
 import { DictionaryService, DictionaryLookupError } from "@/lib/services/dictionary-service";
 import { logDictionaryHistoryAction } from "@/lib/actions/dictionary";
 import { isWordSaved } from "@/lib/data/dictionary-history";
@@ -74,9 +74,16 @@ export default async function DictionaryWordPage({ params }: { params: Promise<{
     await logDictionaryHistoryAction(decoded, "SEARCH");
   }
 
+  // Synonyms/antonyms are a Pro perk — stripped here (not just hidden in the
+  // UI) so a Free account can't see them by inspecting the page source.
+  const pro = isPro(profile);
+  const synonymsLocked = !pro && (result.synonyms.length > 0 || result.antonyms.length > 0);
+  if (!pro) result = { ...result, synonyms: [], antonyms: [] };
+
   return (
     <WordDetailView
       result={result}
+      synonymsLocked={synonymsLocked}
       initialSaved={!!savedRow}
       initialFavorite={savedRow?.isFavorite ?? false}
       initialNote={savedRow?.note ?? ""}

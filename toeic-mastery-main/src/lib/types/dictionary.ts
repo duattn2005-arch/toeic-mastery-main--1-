@@ -27,3 +27,11 @@ export interface DictionaryResult {
   collocations: string[];
   source: "cache" | "provider";
 }
+
+/** What the /api/dictionary/[word] route actually returns — synonyms and
+ * antonyms are a Pro perk, stripped server-side for a Free account (see
+ * that route), with `synonymsLocked` telling the UI whether there was
+ * something to unlock in the first place. */
+export interface DictionaryApiResult extends DictionaryResult {
+  synonymsLocked: boolean;
+}

@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Star, StickyNote } from "lucide-react";
+import { Crown, Loader2, Star, StickyNote } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -14,11 +15,13 @@ import type { DictionaryResult } from "@/lib/types/dictionary";
 
 export function WordDetailView({
   result,
+  synonymsLocked = false,
   initialSaved,
   initialFavorite,
   initialNote,
 }: {
   result: DictionaryResult;
+  synonymsLocked?: boolean;
   initialSaved: boolean;
   initialFavorite: boolean;
   initialNote: string;
@@ -147,6 +150,15 @@ export function WordDetailView({
           </Section>
         )}
       </div>
+
+      {synonymsLocked && (
+        <Link
+          href="/pricing"
+          className="flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 p-4 text-sm font-medium text-primary hover:bg-primary/10"
+        >
+          <Crown className="size-4" /> Nâng cấp Pro để xem từ đồng nghĩa & trái nghĩa của từ này
+        </Link>
+      )}
 
       {result.collocations.length > 0 && (
         <Section title="Collocations">

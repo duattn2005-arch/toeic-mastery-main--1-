@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { DictionaryService, DictionaryLookupError } from "@/lib/services/dictionary-service";
 import { rateLimit, clientKeyFromRequest } from "@/lib/rate-limit";
-import { getAuthedProfileOrNull } from "@/lib/auth";
+import { getAuthedProfileOrNull, isPro } from "@/lib/auth";
 import { hasReachedDictionaryLimit } from "@/lib/services/dictionary-limit";
 
 export async function GET(request: Request, { params }: { params: Promise<{ word: string }> }) {
@@ -37,7 +37,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ word
     return NextResponse.json({ error: "Không tìm thấy từ này" }, { status: 404 });
   }
 
-  return NextResponse.json(result, {
-    headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400" },
+  // Synonyms/antonyms are a Pro perk — stripped here (not just hidden in the
+  // UI) so a Free account can't just read them off the network response.
+  const pro = !!profile && isPro(profile);
+  const synonymsLocked = !pro && (result.synonyms.length > 0 || result.antonyms.length > 0);
+  const payload = pro ? { ...result, synonymsLocked: false } : { ...result, synonyms: [], antonyms: [], synonymsLocked };
+
+  return NextResponse.json(payload, {
+    // "private": this response now varies by the requester's plan, so it
+    // must never be served out of a shared/public cache to someone else.
+    headers: { "Cache-Control": "private, max-age=3600" },
   });
 }

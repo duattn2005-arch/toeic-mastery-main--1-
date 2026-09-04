@@ -1,9 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { DictionaryResult } from "@/lib/types/dictionary";
+import type { DictionaryApiResult } from "@/lib/types/dictionary";
 
-async function fetchWord(word: string): Promise<DictionaryResult> {
+async function fetchWord(word: string): Promise<DictionaryApiResult> {
   const res = await fetch(`/api/dictionary/${encodeURIComponent(word)}`);
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -12,7 +12,7 @@ async function fetchWord(word: string): Promise<DictionaryResult> {
     // dictionary-popup-content.tsx and word-detail-view.tsx.
     throw new Error(body.error ?? "Không tìm thấy từ này");
   }
-  return res.json() as Promise<DictionaryResult>;
+  return res.json() as Promise<DictionaryApiResult>;
 }
 
 export function useDictionaryLookup(word: string | null) {
