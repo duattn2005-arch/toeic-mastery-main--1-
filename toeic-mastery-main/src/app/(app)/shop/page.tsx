@@ -2,15 +2,15 @@ import type { Metadata } from "next";
 import { Coins } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
-import { MOCK_USER_XP, XP_SHOP_ITEMS } from "@/lib/constants/xp-shop";
+import { getOwnedShopItemIds, getSpendableXp } from "@/lib/data/xp-shop";
+import { XP_SHOP_ITEMS } from "@/lib/constants/xp-shop";
 import { XpShopItemCard } from "@/components/shop/xp-shop-item-card";
 
 export const metadata: Metadata = { title: "Cửa hàng XP" };
 
 export default async function ShopPage() {
-  await requireUser();
-  // Stand-in until a real XP ledger exists — see MOCK_USER_XP.
-  const userXp = MOCK_USER_XP;
+  const profile = await requireUser();
+  const [userXp, ownedItemIds] = await Promise.all([getSpendableXp(profile.id), getOwnedShopItemIds(profile.id)]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -28,7 +28,7 @@ export default async function ShopPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {XP_SHOP_ITEMS.map((item) => (
-          <XpShopItemCard key={item.id} item={item} userXp={userXp} />
+          <XpShopItemCard key={item.id} item={item} userXp={userXp} owned={ownedItemIds.has(item.id)} />
         ))}
       </div>
     </div>

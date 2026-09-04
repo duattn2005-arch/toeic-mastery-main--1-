@@ -163,9 +163,11 @@ enum ThemePreference {
 model Profile {
   id                      String    @id @default(uuid()) @db.Uuid
   email                   String    @unique
-  /** Google account's stable `sub` claim — secondary link kept alongside the
+  /**
+   * Google account's stable `sub` claim — secondary link kept alongside the
    * email-based lookup used at sign-in (see src/app/auth/callback/route.ts),
-   * as insurance if a user's Google account email ever changes. */
+   * as insurance if a user's Google account email ever changes.
+   */
   googleId                String?   @unique @map("google_id")
   fullName                String?   @map("full_name")
   avatarUrl               String?   @map("avatar_url")
@@ -179,18 +181,25 @@ model Profile {
   streakCount             Int       @default(0) @map("streak_count")
   longestStreak           Int       @default(0) @map("longest_streak")
   lastStudyDate           DateTime? @map("last_study_date") @db.Date
+  /**
+   * Cumulative XP spent in the XP shop — never applied to the lifetime XP
+   * total itself (see src/lib/services/xp.ts's computeXp), just subtracted
+   * from it when computing spendable balance, so redeeming an item can
+   * never lower the account's rank/level.
+   */
+  xpSpent                 Int       @default(0) @map("xp_spent")
   createdAt               DateTime  @default(now()) @map("created_at")
   updatedAt               DateTime  @updatedAt @map("updated_at")
 
-  referralCode            String?             @unique @map("referral_code")
-  referredByProfileId     String?             @map("referred_by_profile_id") @db.Uuid
-  referredAt              DateTime?           @map("referred_at")
-  attributionSource       AttributionSource?  @map("attribution_source")
-  isLateAttribution       Boolean             @default(false) @map("is_late_attribution")
-  firstProPaymentAt       DateTime?           @map("first_pro_payment_at")
-  successfulReferralCount Int                 @default(0) @map("successful_referral_count")
-  isFlaggedFraud          Boolean             @default(false) @map("is_flagged_fraud")
-  fraudNote               String?             @map("fraud_note")
+  referralCode            String?            @unique @map("referral_code")
+  referredByProfileId     String?            @map("referred_by_profile_id") @db.Uuid
+  referredAt              DateTime?          @map("referred_at")
+  attributionSource       AttributionSource? @map("attribution_source")
+  isLateAttribution       Boolean            @default(false) @map("is_late_attribution")
+  firstProPaymentAt       DateTime?          @map("first_pro_payment_at")
+  successfulReferralCount Int                @default(0) @map("successful_referral_count")
+  isFlaggedFraud          Boolean            @default(false) @map("is_flagged_fraud")
+  fraudNote               String?            @map("fraud_note")
 
   settings          UserSettings?
   attempts          Attempt[]
@@ -202,10 +211,11 @@ model Profile {
   answerRevealLogs  AnswerRevealLog[]
   savedWords        SavedWord[]
   questionReports   QuestionReport[]
-  createdTests      Test[]              @relation("TestAuthor")
+  createdTests      Test[]                          @relation("TestAuthor")
   pathDayProgress   UserVocabularyPathDayProgress[]
   payments          Payment[]
   redeemedCodes     ActivationCode[]
+  shopItems         UserShopItem[]
 
   referredBy        Profile?           @relation("Referrals", fields: [referredByProfileId], references: [id], onDelete: SetNull)
   referrals         Profile[]          @relation("Referrals")
@@ -239,9 +249,11 @@ model Payment {
   @@map("payments")
 }
 
-/** Admin-generated single-use codes that grant Pro directly, as an
+/**
+ * Admin-generated single-use codes that grant Pro directly, as an
  * alternative to the bank-transfer + manual-approval flow (e.g. for
- * giveaways, partners, or a learner who paid through some other channel). */
+ * giveaways, partners, or a learner who paid through some other channel).
+ */
 model ActivationCode {
   id               String    @id @default(uuid()) @db.Uuid
   code             String    @unique
@@ -259,9 +271,11 @@ model UserSettings {
   id                     String          @id @default(uuid()) @db.Uuid
   userId                 String          @unique @map("user_id") @db.Uuid
   theme                  ThemePreference @default(LIGHT)
-  /** Selected site-wide "Live theme" wallpaper (see SITE_THEMES registry in
+  /**
+   * Selected site-wide "Live theme" wallpaper (see SITE_THEMES registry in
    * src/lib/constants/site-themes.ts). Plain string, not an enum, so new
-   * themes can ship without a migration. */
+   * themes can ship without a migration.
+   */
   siteTheme              String          @default("aurora") @map("site_theme")
   language               String          @default("vi")
   audioAutoplay          Boolean         @default(true) @map("audio_autoplay")
@@ -374,10 +388,10 @@ model Question {
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")
 
-  test         Test?            @relation(fields: [testId], references: [id], onDelete: Cascade)
-  testSection  TestSection?     @relation(fields: [testSectionId], references: [id], onDelete: SetNull)
-  passage      Passage?         @relation(fields: [passageId], references: [id], onDelete: SetNull)
-  grammarTopic GrammarTopic?    @relation(fields: [grammarTopicId], references: [id], onDelete: SetNull)
+  test         Test?             @relation(fields: [testId], references: [id], onDelete: Cascade)
+  testSection  TestSection?      @relation(fields: [testSectionId], references: [id], onDelete: SetNull)
+  passage      Passage?          @relation(fields: [passageId], references: [id], onDelete: SetNull)
+  grammarTopic GrammarTopic?     @relation(fields: [grammarTopicId], references: [id], onDelete: SetNull)
   options      QuestionOption[]
   answers      AttemptAnswer[]
   bookmarks    Bookmark[]
@@ -507,10 +521,12 @@ model VocabularyTopic {
   name        String
   description String?
   icon        String?
-  /** Groups topics into sections on /vocabulary/topics (e.g. "Theo band
+  /**
+   * Groups topics into sections on /vocabulary/topics (e.g. "Theo band
    * điểm", "Theo Part", "Cụm từ cố định & thường gặp"). Null for the
    * original context-based topics (office, travel, ...), which render in
-   * their own ungrouped section. Mirrors GrammarTopic.category. */
+   * their own ungrouped section. Mirrors GrammarTopic.category.
+   */
   category    String?
   orderIndex  Int      @default(0) @map("order_index")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -525,9 +541,11 @@ model VocabularyWord {
   topicId      String     @map("topic_id") @db.Uuid
   word         String
   ipa          String?
-  /** Optional so quick Quizlet-style bulk import (term + meaning only) works
+  /**
+   * Optional so quick Quizlet-style bulk import (term + meaning only) works
    * without forcing every field up front — an admin can flesh a word out
-   * with part of speech/examples later via edit. */
+   * with part of speech/examples later via edit.
+   */
   partOfSpeech String?    @map("part_of_speech")
   meaningVi    String     @map("meaning_vi")
   definitionEn String?    @map("definition_en")
@@ -574,7 +592,9 @@ model VocabularyPathDay {
   id        String   @id @default(uuid()) @db.Uuid
   pathId    String   @map("path_id") @db.Uuid
   dayNumber Int      @map("day_number")
-  /** Groups days into a 5-day arc for display (e.g. "Khởi Đầu", "Tăng Tốc"). */
+  /**
+   * Groups days into a 5-day arc for display (e.g. "Khởi Đầu", "Tăng Tốc").
+   */
   tierLabel String   @map("tier_label")
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -599,9 +619,11 @@ model VocabularyPathDayWord {
   @@map("vocabulary_path_day_words")
 }
 
-/** stepsCompleted: 0-3, one per step (Học/Luyện tập/Kiểm tra). Day counts as
+/**
+ * stepsCompleted: 0-3, one per step (Học/Luyện tập/Kiểm tra). Day counts as
  * done, and the next day unlocks, once stepsCompleted reaches 3. `stars`
- * (0-3) is set from the step-3 quiz score when that step completes. */
+ * (0-3) is set from the step-3 quiz score when that step completes.
+ */
 model UserVocabularyPathDayProgress {
   id             String    @id @default(uuid()) @db.Uuid
   userId         String    @map("user_id") @db.Uuid
@@ -705,9 +727,11 @@ model StudySession {
   durationSec  Int           @default(0) @map("duration_sec")
   startedAt    DateTime      @default(now()) @map("started_at")
   endedAt      DateTime?     @map("ended_at")
-  /** Set only for EXAM/PRACTICE sessions — lets the sync/submit routes keep
+  /**
+   * Set only for EXAM/PRACTICE sessions — lets the sync/submit routes keep
    * durationSec current as the attempt progresses, instead of it being
-   * permanently stuck at 0 from creation time. */
+   * permanently stuck at 0 from creation time.
+   */
   attemptId    String?       @unique @map("attempt_id") @db.Uuid
   metadata     Json?
 
@@ -772,10 +796,12 @@ model DictionaryHistory {
   @@map("dictionary_history")
 }
 
-/** One row per "Chữa tức thì" (reveal answer + explanation) use in Practice
+/**
+ * One row per "Chữa tức thì" (reveal answer + explanation) use in Practice
  * mode — same shape/purpose as DictionaryHistory: a plain event log counted
  * for the free-tier daily cap rather than a separate counter to keep in
- * sync. */
+ * sync.
+ */
 model AnswerRevealLog {
   id         String   @id @default(uuid()) @db.Uuid
   userId     String   @map("user_id") @db.Uuid
@@ -795,17 +821,21 @@ model SavedWord {
   word       String
   note       String?
   isFavorite Boolean  @default(false) @map("is_favorite")
-  /** Learner-authored meaning/example (Quizlet-style "add your own word") —
+  /**
+   * Learner-authored meaning/example (Quizlet-style "add your own word") —
    * set when the word was added directly rather than saved from a
    * dictionary lookup. Takes precedence over the DictionaryEntry cache when
-   * present, so a learner isn't limited to words the dictionary API knows. */
+   * present, so a learner isn't limited to words the dictionary API knows.
+   */
   meaningVi  String?  @map("meaning_vi")
   exampleEn  String?  @map("example_en")
-  /** Free-text, learner-named folder (e.g. "OFFICE") — deliberately not a
+  /**
+   * Free-text, learner-named folder (e.g. "OFFICE") — deliberately not a
    * separate relational model: a category only ever exists as a string a
    * handful of SavedWord rows happen to share, so renaming/deleting one is
    * just a bulk string update, no cascade/orphan bookkeeping needed. Null =
-   * uncategorized. */
+   * uncategorized.
+   */
   category   String?
   createdAt  DateTime @default(now()) @map("created_at")
 
@@ -947,4 +977,23 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscriptions")
+}
+
+/**
+ * One XP shop redemption. `itemId` matches a `ShopItem.id` from the static
+ * catalog in src/lib/constants/xp-shop.ts — the catalog itself isn't
+ * database-backed (no admin surface for it yet), only ownership is.
+ */
+model UserShopItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  itemId     String   @map("item_id")
+  priceXp    Int      @map("price_xp")
+  redeemedAt DateTime @default(now()) @map("redeemed_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemId])
+  @@index([userId])
+  @@map("user_shop_items")
 }
