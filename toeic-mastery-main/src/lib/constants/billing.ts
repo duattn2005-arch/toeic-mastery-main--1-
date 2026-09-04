@@ -15,10 +15,9 @@ export type ProPlanKey = keyof typeof PRO_PLANS;
  * cosmetic banner. Rounded to the nearest 1,000đ to land on the same "ends in
  * 9,000" style as PRO_PLANS. */
 export const NEW_MEMBER_OFFER_PERCENT = 25;
-/** Length of each welcome-offer countdown window, anchored to signup date —
- * a real deadline, not reset by reloading, but repeating window after window
- * for as long as the account stays eligible (see getNewMemberOfferState). */
-export const NEW_MEMBER_OFFER_WINDOW_DAYS = 3;
+/** One-time welcome-offer window from signup — a hard deadline, not reset by
+ * reloading and not repeating once it lapses (see getNewMemberOfferState). */
+export const NEW_MEMBER_OFFER_WINDOW_HOURS = 7;
 
 export function discountedPriceVnd(planKey: ProPlanKey): number {
   const plan = PRO_PLANS[planKey];

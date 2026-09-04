@@ -22,6 +22,31 @@ export interface UseTourStepResult {
   skip: () => void;
 }
 
+const VISIT_COUNT_KEY = "tour_total_visits";
+/** sessionStorage, not localStorage — reloading within the same browser
+ * session must not inflate the visit count, only a genuinely new session
+ * (new tab, or the previous one closed) counts as another visit. */
+const SESSION_COUNTED_KEY = "tour_session_counted";
+/** Onboarding tours (dashboard/listening/reading/...) only run for a
+ * learner's first FREE_TOUR_VISITS visits to any page that has one, shared
+ * across all tourIds — from the next visit on, every tour reports itself
+ * done without ever having run, rather than nagging a returning user who
+ * never finished a specific tour. */
+const FREE_TOUR_VISITS = 2;
+
+function countVisitAndCheckAllowed(): boolean {
+  try {
+    if (sessionStorage.getItem(SESSION_COUNTED_KEY) !== "true") {
+      const current = Number(localStorage.getItem(VISIT_COUNT_KEY) ?? "0");
+      localStorage.setItem(VISIT_COUNT_KEY, String(current + 1));
+      sessionStorage.setItem(SESSION_COUNTED_KEY, "true");
+    }
+    return Number(localStorage.getItem(VISIT_COUNT_KEY) ?? "0") <= FREE_TOUR_VISITS;
+  } catch {
+    return true; // storage unavailable — fail open, don't block the tour on it
+  }
+}
+
 /** Ephemeral, write-once onboarding-tour progress. Same localStorage +
  * try/catch fail-open pattern as welcome-offer-modal.tsx's view counter —
  * this doesn't need zustand's cross-component sync since exactly one tour
@@ -34,7 +59,8 @@ export function useTourStep(tourId: TourId | string): UseTourStepResult {
   React.useEffect(() => {
     let next: TourStepState = { step: 0, done: false };
     try {
-      const done = localStorage.getItem(doneKey) === "true";
+      const visitsAllowed = countVisitAndCheckAllowed();
+      const done = localStorage.getItem(doneKey) === "true" || !visitsAllowed;
       const rawStep = Number(localStorage.getItem(stepKey));
       const step = Number.isFinite(rawStep) && rawStep >= 0 ? rawStep : 0;
       next = { step, done };
