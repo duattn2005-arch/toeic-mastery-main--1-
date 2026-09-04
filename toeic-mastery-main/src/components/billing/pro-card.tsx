@@ -120,7 +120,7 @@ export function ProCard({ offer }: { offer: NewMemberOfferState }) {
                   )}
                 >
                   {"recommended" in p && p.recommended && (
-                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-semibold text-primary-foreground">
+                    <span className="absolute -top-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap text-primary-foreground">
                       Khuyên dùng
                     </span>
                   )}

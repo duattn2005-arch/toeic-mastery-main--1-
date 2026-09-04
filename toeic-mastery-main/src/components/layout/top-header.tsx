@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Bell, Clock, Crown, LogOut, Menu, Search, Settings, User as UserIcon, Users } from "lucide-react";
+import { Bell, Clock, Crown, Gem, LogOut, Menu, Search, Settings, User as UserIcon, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -160,14 +160,24 @@ export function TopHeader({
             <button
               type="button"
               data-tour="dashboard-avatar"
-              className="flex size-9 items-center justify-center overflow-hidden rounded-full border border-border bg-muted"
+              className="relative flex size-9 items-center justify-center rounded-full border border-border bg-muted"
               aria-label="Menu tài khoản"
             >
-              {profile.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={profile.avatarUrl} alt="" className="size-full object-cover" />
-              ) : (
-                <UserIcon className="size-4 text-muted-foreground" />
+              <span className="flex size-full items-center justify-center overflow-hidden rounded-full">
+                {profile.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={profile.avatarUrl} alt="" className="size-full object-cover" />
+                ) : (
+                  <UserIcon className="size-4 text-muted-foreground" />
+                )}
+              </span>
+              {isPro && (
+                <span
+                  className="absolute -right-0.5 -bottom-0.5 flex size-4 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 ring-2 ring-background"
+                  title="Tài khoản Pro"
+                >
+                  <Crown className="size-2.5 fill-white text-white" />
+                </span>
               )}
             </button>
           </DropdownMenuTrigger>
@@ -177,6 +187,11 @@ export function TopHeader({
             <DropdownMenuItem asChild>
               <Link href="/account/profile">
                 <UserIcon /> Hồ sơ
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/shop">
+                <Gem /> Cửa hàng XP
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>

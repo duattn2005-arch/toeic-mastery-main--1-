@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Flame, Headphones, Settings, ShieldCheck, Target, User } from "lucide-react";
+import { Crown, Flame, Headphones, Settings, ShieldCheck, Target, User } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { MAIN_NAV } from "@/lib/constants/nav";
@@ -26,6 +26,10 @@ function isActive(pathname: string, href: string) {
 
 export function AppSidebar({ profile }: { profile: SidebarProfile }) {
   const pathname = usePathname();
+  // Same rule as src/lib/auth.ts's isPro() — that file is server-only, so it
+  // can't be imported into this client component; see top-header.tsx for the
+  // same duplicated one-liner.
+  const isPro = profile.plan === "PRO" && (!profile.proExpiresAt || profile.proExpiresAt > new Date());
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-sidebar text-sidebar-foreground lg:flex">
@@ -95,12 +99,22 @@ export function AppSidebar({ profile }: { profile: SidebarProfile }) {
             href="/account/profile"
             className="flex flex-1 items-center gap-2.5 rounded-xl px-1.5 py-1 hover:bg-sidebar-active-bg/60"
           >
-            <span className="flex size-8 items-center justify-center overflow-hidden rounded-full bg-sidebar-active-bg text-sidebar-foreground">
-              {profile.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={profile.avatarUrl} alt="" className="size-full object-cover" />
-              ) : (
-                <User className="size-4" />
+            <span className="relative flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-active-bg text-sidebar-foreground">
+              <span className="flex size-full items-center justify-center overflow-hidden rounded-full">
+                {profile.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={profile.avatarUrl} alt="" className="size-full object-cover" />
+                ) : (
+                  <User className="size-4" />
+                )}
+              </span>
+              {isPro && (
+                <span
+                  className="absolute -right-0.5 -bottom-0.5 flex size-3.5 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 ring-2 ring-sidebar"
+                  title="Tài khoản Pro"
+                >
+                  <Crown className="size-2 fill-white text-white" />
+                </span>
               )}
             </span>
             <span className="min-w-0 flex-1">
