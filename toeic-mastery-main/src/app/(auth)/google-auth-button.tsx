@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 function GoogleIcon() {
@@ -29,10 +30,13 @@ export function GoogleAuthButton() {
   const href = next ? `/api/auth/google?next=${encodeURIComponent(next)}` : "/api/auth/google";
 
   return (
-    <Button asChild type="button" variant="outline" className="w-full">
+    <Button asChild type="button" variant="outline" className="h-12 w-full justify-between rounded-full px-5 text-sm font-medium">
       <a href={href}>
-        <GoogleIcon />
-        Đăng nhập với Google
+        <span className="flex items-center gap-2.5">
+          <GoogleIcon />
+          Đăng nhập với Google
+        </span>
+        <ArrowRight className="size-4 text-muted-foreground" />
       </a>
     </Button>
   );

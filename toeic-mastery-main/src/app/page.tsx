@@ -1,8 +1,7 @@
-import Link from "next/link";
-import { ArrowRight, BarChart3, BookA, Headphones, Layers, ShieldCheck, Sparkles } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { BarChart3, BookA, Headphones, Layers, ShieldCheck, Sparkles } from "lucide-react";
 import { getCurrentProfile } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { HeaderAuthButtons, HeroAuthButtons } from "@/components/marketing/landing-auth-buttons";
 
 const FEATURES = [
   {
@@ -41,14 +40,7 @@ export default async function LandingPage() {
           <span className="text-lg font-semibold tracking-tight">TOEIC Mastery</span>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" asChild>
-            <Link href="/login">Đăng nhập</Link>
-          </Button>
-          <Button asChild>
-            <Link href="/login">
-              Bắt đầu miễn phí <ArrowRight />
-            </Link>
-          </Button>
+          <HeaderAuthButtons />
         </div>
       </header>
 
@@ -64,14 +56,7 @@ export default async function LandingPage() {
           điểm yếu chi tiết — tất cả trong một nền tảng, hoàn toàn miễn phí để bắt đầu.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
-          <Button size="lg" asChild>
-            <Link href="/login">
-              Tạo tài khoản miễn phí <ArrowRight />
-            </Link>
-          </Button>
-          <Button size="lg" variant="outline" asChild>
-            <Link href="/login">Tôi đã có tài khoản</Link>
-          </Button>
+          <HeroAuthButtons />
         </div>
       </section>
 

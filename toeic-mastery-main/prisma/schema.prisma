@@ -169,6 +169,19 @@ model Profile {
    * as insurance if a user's Google account email ever changes.
    */
   googleId                String?   @unique @map("google_id")
+  /**
+   * scrypt hash of the account's password (see src/lib/auth/password.ts) —
+   * null for accounts that have only ever signed in with Google. Email
+   * login (src/app/(auth)/actions.ts) rejects with a clear "use Google"
+   * error rather than a generic "wrong password" when this is null.
+   */
+  passwordHash            String?   @map("password_hash")
+  /** Hash (not the raw code) of the most recently issued forgot-password
+   * OTP, plus its expiry — see requestPasswordResetAction /
+   * resetPasswordAction in src/app/(auth)/actions.ts. Both null once
+   * unused/consumed/expired. */
+  resetCodeHash           String?   @map("reset_code_hash")
+  resetCodeExpiresAt      DateTime? @map("reset_code_expires_at")
   fullName                String?   @map("full_name")
   avatarUrl               String?   @map("avatar_url")
   role                    Role      @default(STUDENT)

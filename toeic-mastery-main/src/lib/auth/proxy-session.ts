@@ -1,8 +1,8 @@
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 import { SESSION_COOKIE, SESSION_REFRESH_THRESHOLD_SEC, sessionCookieOptions, signSessionToken, verifySessionToken } from "@/lib/auth/session";
 
-const PUBLIC_ROUTES = ["/", "/login"];
-const AUTH_ROUTES = ["/login"];
+const AUTH_ROUTES = ["/login", "/register", "/forgot-password", "/reset-password"];
+const PUBLIC_ROUTES = ["/", ...AUTH_ROUTES];
 
 /** First-touch attribution cookie: whichever referral link a visitor
  * clicks first is kept for 60 days, even if they later click a different
