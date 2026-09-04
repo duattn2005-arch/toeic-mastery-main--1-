@@ -438,6 +438,151 @@
   animation: ring-hue-shift 4s ease-in-out infinite;
 }
 
+/* XP shop "scene" frames (XpShopSceneFrames): a handful of reusable motion
+ * primitives shared across the illustrated per-theme frames (Ocean Waves,
+ * Tropical Coconut, Royal Crown, Zen Bamboo, Sakura Garden, Campfire) —
+ * each theme composes these with its own shapes/colors/timing (via
+ * animation-duration/-delay) rather than every theme defining its own
+ * one-off keyframes. */
+
+/* Wave crests bobbing (Ocean Waves) and bubbles/embers rising+fading
+ * (Ocean Waves, Campfire) are different enough in motion to need their own
+ * keyframes, but both stay tiny/generic so any element can use them. */
+@keyframes wave-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+.wave-bob {
+  animation: wave-bob 2.2s ease-in-out infinite;
+}
+
+@keyframes rise-fade {
+  0% {
+    transform: translateY(0) scale(0.8);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-14px) scale(1.05);
+    opacity: 0;
+  }
+}
+.rise-fade {
+  animation: rise-fade 2.6s ease-in infinite;
+}
+
+/* Pivoted sway (a palm frond or a static accent leaf swaying in a breeze) —
+ * pair with an inline `transform-origin` on the element itself so the pivot
+ * sits at the shape's own base, not its center. */
+@keyframes sway {
+  0%,
+  100% {
+    transform: rotate(-6deg);
+  }
+  50% {
+    transform: rotate(6deg);
+  }
+}
+.sway {
+  animation: sway 3s ease-in-out infinite;
+}
+
+/* A leaf/petal falling past the frame: drifts down, sways side to side, and
+ * fades in/out at the loop's ends so it never visibly "pops." Distance is a
+ * custom property (not a %, which for `translate` resolves against the
+ * tiny leaf's own box, not the frame) — set `--fall-distance` inline per
+ * instance to scale with the frame's size. */
+@keyframes fall-drift {
+  0% {
+    transform: translate(0, calc(-1 * var(--fall-distance, 40px))) rotate(0deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate(6px, 0) rotate(180deg);
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-4px, var(--fall-distance, 40px)) rotate(360deg);
+    opacity: 0;
+  }
+}
+.fall-drift {
+  animation: fall-drift 4.5s ease-in-out infinite;
+}
+
+/* Slow vertical float (a crown hovering above its frame). */
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+.float-y {
+  animation: float-y 2.8s ease-in-out infinite;
+}
+
+/* Diagonal highlight sweeping across a metallic ring (Royal Crown). */
+@keyframes shimmer-sweep {
+  0% {
+    background-position: -150% -150%;
+  }
+  100% {
+    background-position: 150% 150%;
+  }
+}
+.shimmer-sweep {
+  background-size: 250% 250%;
+  animation: shimmer-sweep 2.6s linear infinite;
+}
+
+/* Very subtle "breathing" pulse for a frame that should feel calm/alive
+ * without spinning (Zen Bamboo). */
+@keyframes ring-bounce {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+.ring-bounce {
+  animation: ring-bounce 2.4s ease-in-out infinite;
+}
+
+/* Campfire flame flicker — scale+skew jitter reads as "fire", a plain pulse
+ * doesn't. */
+@keyframes flame-flicker {
+  0%,
+  100% {
+    transform: scaleY(1) skewX(0deg);
+  }
+  30% {
+    transform: scaleY(1.12) skewX(-3deg);
+  }
+  60% {
+    transform: scaleY(0.94) skewX(2deg);
+  }
+}
+.flame-flicker {
+  animation: flame-flicker 0.9s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hero-ambient,
   .hero-blob,
@@ -449,6 +594,14 @@
   .spin-reverse-slow,
   .particle-twinkle,
   .ring-hue-shift,
+  .wave-bob,
+  .rise-fade,
+  .sway,
+  .fall-drift,
+  .float-y,
+  .shimmer-sweep,
+  .ring-bounce,
+  .flame-flicker,
   .mascot-bubble-auto,
   .mascot-jump,
   .notify-dot {

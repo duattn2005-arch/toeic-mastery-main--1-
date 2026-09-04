@@ -1,28 +1,26 @@
-import {
-  CloudLightning,
-  Droplets,
-  Flame,
-  Flower2,
-  Ghost,
-  Leaf,
-  Moon,
-  Shell,
-  Skull,
-  Snowflake,
-  Sparkle,
-  Sparkles,
-  Star,
-  Sun,
-  Sunrise,
-  Waves,
-  Wind,
-  Zap,
-  type LucideIcon,
-} from "lucide-react";
+import { CloudLightning, Flame, Ghost, Leaf, Moon, Skull, Snowflake, Star, Sun, Sunrise, Sparkle, Sparkles, Waves, Wind, Zap, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { ShopItemRarity, ShopItemTheme } from "@/lib/constants/xp-shop";
 import { RabbitIllustration } from "@/components/mascot/mascot-illustration";
+import {
+  CampfireFrame,
+  OceanWavesFrame,
+  RoyalCrownFrame,
+  SakuraGardenFrame,
+  TropicalCoconutFrame,
+  ZenBambooFrame,
+  type SceneTheme,
+} from "@/components/shop/xp-shop-scene-frames";
+
+const SCENE_FRAMES: Record<SceneTheme, React.ComponentType<{ size: number; rarity: ShopItemRarity }>> = {
+  aqua: OceanWavesFrame,
+  ember: CampfireFrame,
+  bloom: SakuraGardenFrame,
+  royal: RoyalCrownFrame,
+  tropical: TropicalCoconutFrame,
+  bamboo: ZenBambooFrame,
+};
 
 interface Glyph {
   icon: LucideIcon;
@@ -33,21 +31,22 @@ interface ThemeStyle {
   /** Thin inset ring color the wreath sits on. */
   ringTint: string;
   glow: string;
-  /** Two alternating glyphs per theme (e.g. flower + leaf for bloom) — a
+  /** Two alternating glyphs per theme (e.g. wind + waves for storm) — a
    * single repeated icon read as flat; alternating pairs is what makes the
    * ring look like an arranged wreath instead of a row of stamped copies. */
   primary: Glyph;
   secondary: Glyph;
 }
 
-const THEME_STYLES: Record<ShopItemTheme, ThemeStyle> = {
+/** Themes without a fully illustrated scene (see xp-shop-scene-frames.tsx)
+ * fall back to this generic orbiting-glyph wreath. */
+type WreathTheme = Exclude<ShopItemTheme, SceneTheme>;
+
+const THEME_STYLES: Record<WreathTheme, ThemeStyle> = {
   dawn: { ringTint: "#fbbf24", glow: "#fb923c", primary: { icon: Sparkle, color: "#f59e0b" }, secondary: { icon: Sunrise, color: "#fb923c" } },
   verdant: { ringTint: "#65a30d", glow: "#4ade80", primary: { icon: Leaf, color: "#16a34a" }, secondary: { icon: Sun, color: "#84cc16" } },
-  aqua: { ringTint: "#0891b2", glow: "#22d3ee", primary: { icon: Droplets, color: "#0891b2" }, secondary: { icon: Shell, color: "#06b6d4" } },
   storm: { ringTint: "#64748b", glow: "#94a3b8", primary: { icon: Wind, color: "#64748b" }, secondary: { icon: Waves, color: "#475569" } },
-  ember: { ringTint: "#ea580c", glow: "#f97316", primary: { icon: Flame, color: "#ea580c" }, secondary: { icon: Sun, color: "#f59e0b" } },
   frost: { ringTint: "#0284c7", glow: "#38bdf8", primary: { icon: Snowflake, color: "#0284c7" }, secondary: { icon: Star, color: "#38bdf8" } },
-  bloom: { ringTint: "#db2777", glow: "#f472b6", primary: { icon: Flower2, color: "#db2777" }, secondary: { icon: Sparkle, color: "#f472b6" } },
   shadow: { ringTint: "#7c3aed", glow: "#7c3aed", primary: { icon: Ghost, color: "#8b5cf6" }, secondary: { icon: Skull, color: "#581c87" } },
   thunder: { ringTint: "#a78bfa", glow: "#a78bfa", primary: { icon: Zap, color: "#eab308" }, secondary: { icon: CloudLightning, color: "#7c3aed" } },
   arcane: { ringTint: "#0d9488", glow: "#2dd4bf", primary: { icon: Sparkles, color: "#0d9488" }, secondary: { icon: Star, color: "#059669" } },
@@ -66,12 +65,11 @@ const RARITY_MOTION: Record<ShopItemRarity, { count: number; glow: string }> = {
   MYTHIC: { count: 14, glow: "0 0 18px" },
 };
 
-/** An avatar frame preview for the XP shop: a ring of alternating themed
- * glyph icons wreathed around the app's own mascot, slowly spinning — glyph
- * pair + color come from the item's theme, count/glow from its rarity, so no
- * two items in the catalog look alike and rarer items visibly read denser
- * and brighter. */
-export function XpShopItemVisual({ rarity, theme, size = 92 }: { rarity: ShopItemRarity; theme: ShopItemTheme; size?: number }) {
+/** Generic fallback frame: a ring of alternating themed glyph icons wreathed
+ * around the app's own mascot, slowly spinning — glyph pair + color come
+ * from the item's theme, count/glow from its rarity. Used for every theme
+ * that doesn't have a bespoke illustrated scene (see SCENE_FRAMES). */
+function GlyphWreathFrame({ rarity, theme, size }: { rarity: ShopItemRarity; theme: WreathTheme; size: number }) {
   const style = THEME_STYLES[theme];
   const motion = RARITY_MOTION[rarity];
   const radius = size / 2 + 5;
@@ -113,4 +111,14 @@ export function XpShopItemVisual({ rarity, theme, size = 92 }: { rarity: ShopIte
       </div>
     </div>
   );
+}
+
+/** An avatar frame preview for the XP shop. Themes with a bespoke
+ * illustrated scene (Ocean Waves, Campfire, Sakura Garden, Royal Crown,
+ * Tropical Coconut, Zen Bamboo) render that; every other theme falls back to
+ * the generic glyph wreath. */
+export function XpShopItemVisual({ rarity, theme, size = 92 }: { rarity: ShopItemRarity; theme: ShopItemTheme; size?: number }) {
+  const SceneFrame = SCENE_FRAMES[theme as SceneTheme];
+  if (SceneFrame) return <SceneFrame size={size} rarity={rarity} />;
+  return <GlyphWreathFrame rarity={rarity} theme={theme as WreathTheme} size={size} />;
 }
