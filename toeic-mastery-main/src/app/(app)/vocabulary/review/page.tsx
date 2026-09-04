@@ -11,17 +11,13 @@ export default async function VocabularyReviewPage() {
   const due = await getDueReviewQueue(profile.id);
 
   const items = due.map((d) => ({
-    userVocabularyId: d.id,
     vocabularyWordId: d.vocabularyWordId,
     word: {
       word: d.vocabularyWord.word,
       ipa: d.vocabularyWord.ipa,
       partOfSpeech: d.vocabularyWord.partOfSpeech,
       meaningVi: d.vocabularyWord.meaningVi,
-      definitionEn: d.vocabularyWord.definitionEn,
       exampleEn: d.vocabularyWord.exampleEn,
-      exampleVi: d.vocabularyWord.exampleVi,
-      collocations: d.vocabularyWord.collocations,
       audioUrlUs: d.vocabularyWord.audioUrlUs,
       audioUrlUk: d.vocabularyWord.audioUrlUk,
     },

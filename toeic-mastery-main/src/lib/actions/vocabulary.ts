@@ -70,22 +70,8 @@ async function applyReview(
   ]);
 }
 
-export async function reviewVocabularyAction(userVocabularyId: string, rating: ReviewRating): Promise<ActionResult> {
-  const profile = await getCurrentProfile();
-  if (!profile) return { error: "Vui lòng đăng nhập" };
-
-  const current = await db.userVocabulary.findUnique({ where: { id: userVocabularyId } });
-  if (!current || current.userId !== profile.id) return { error: "Không tìm thấy từ vựng" };
-
-  await applyReview(current, rating);
-
-  revalidatePath("/vocabulary/review");
-  revalidatePath("/dashboard");
-  return {};
-}
-
 /**
- * Same SRS update as the graded review, but keyed by `vocabularyWordId` (what
+ * Same SRS update as a graded flashcard rating, but keyed by `vocabularyWordId` (what
  * the study-game components actually know about a word) and auto-starts
  * tracking if this is the first time the word's been practiced anywhere —
  * so playing a game with a not-yet-tracked word still counts, exactly like
