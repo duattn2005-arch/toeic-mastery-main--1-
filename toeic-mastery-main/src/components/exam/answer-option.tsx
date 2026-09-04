@@ -40,7 +40,10 @@ export function AnswerOptionList({
             aria-disabled={disabled}
             onClick={disabled ? undefined : () => onSelect(option.label)}
             className={cn(
-              "flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-colors",
+              // select-text overrides the browser default of user-select:none
+              // on <button>, which otherwise blocks bôi đen (highlight-to-
+              // look-up) even though aria-disabled leaves selection allowed.
+              "flex select-text items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-colors",
               disabled && "cursor-default",
               isRevealedCorrect
                 ? "border-success bg-success/10"
@@ -65,7 +68,7 @@ export function AnswerOptionList({
             >
               {option.label}
             </span>
-            {!hideText && <span className="flex-1">{option.content}</span>}
+            {!hideText && <span className="flex-1 cursor-text">{option.content}</span>}
             {isRevealedCorrect && <Check className="size-4 shrink-0 text-success" />}
             {isRevealedWrong && <X className="size-4 shrink-0 text-destructive" />}
           </button>
