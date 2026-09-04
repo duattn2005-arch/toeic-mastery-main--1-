@@ -61,7 +61,12 @@ class DictionaryApiDevProvider implements DictionaryProvider {
     let res: Response;
     try {
       res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`, {
-        signal: AbortSignal.timeout(6000),
+        // Short — this host is known to be network-blocked from this VPS
+        // right now, and every provider runs concurrently (see
+        // DictionaryService.fetchFromProviders), so this timeout is the
+        // floor on how long a blocked/slow primary can hold up the whole
+        // lookup rather than just losing a race to a faster fallback.
+        signal: AbortSignal.timeout(2000),
         next: { revalidate: false },
       });
     } catch (err) {
@@ -205,6 +210,43 @@ class WiktionaryProvider implements DictionaryProvider {
   }
 }
 
+/** Free, keyless WordNet-backed word-relations API — https://www.datamuse.com/api.
+ * Neither definition provider above reliably supplies synonyms/antonyms
+ * (dictionaryapi.dev does for some words; Wiktionary's definition endpoint
+ * never does), so this fills the gap for whichever one just resolved the
+ * word — tried regardless of which provider supplied the definitions. */
+async function fetchDatamuseRelated(word: string, relation: "rel_syn" | "rel_ant"): Promise<string[]> {
+  try {
+    const res = await fetch(`https://api.datamuse.com/words?${relation}=${encodeURIComponent(word)}&max=10`, {
+      signal: AbortSignal.timeout(2000),
+      next: { revalidate: false },
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { word: string }[];
+    return data.map((d) => d.word);
+  } catch {
+    // Best-effort enrichment, not required data — a failure here just means
+    // this word keeps whatever synonyms/antonyms it already had (often none).
+    return [];
+  }
+}
+
+/** Only fills in whichever of synonyms/antonyms is actually missing — never
+ * overrides real data a definition provider already supplied. */
+async function enrichSynonymsAntonyms(word: string, synonyms: string[], antonyms: string[]): Promise<{ synonyms: string[]; antonyms: string[] }> {
+  if (synonyms.length > 0 && antonyms.length > 0) return { synonyms, antonyms };
+
+  const [newSynonyms, newAntonyms] = await Promise.all([
+    synonyms.length > 0 ? Promise.resolve<string[]>([]) : fetchDatamuseRelated(word, "rel_syn"),
+    antonyms.length > 0 ? Promise.resolve<string[]>([]) : fetchDatamuseRelated(word, "rel_ant"),
+  ]);
+
+  return {
+    synonyms: synonyms.length > 0 ? synonyms : newSynonyms.slice(0, 10),
+    antonyms: antonyms.length > 0 ? antonyms : newAntonyms.slice(0, 10),
+  };
+}
+
 function resolveProviders(): DictionaryProvider[] {
   const provider = (process.env.DICTIONARY_PROVIDER ?? "dictionaryapi").toLowerCase();
   switch (provider) {
@@ -305,21 +347,26 @@ export class DictionaryService {
     return translated;
   }
 
-  /** Tries every provider in order for one exact word — the first real
-   * result (or clean "not found") wins. A provider throwing (network/5xx)
-   * just moves on to the next one instead of failing the whole lookup;
-   * `lastError` is only surfaced by the caller if every provider threw. */
+  /** Tries every provider for one exact word *concurrently* — awaiting them
+   * one at a time would mean a slow/blocked primary (dictionaryapi.dev is
+   * currently network-blocked from this VPS) adds its full timeout on top
+   * of every fallback's latency instead of just racing it. Priority order
+   * still decides the winner among whichever succeeded: the first provider
+   * in `this.providers` with a real result wins, even if a later one in the
+   * list happened to resolve first. A provider throwing (network/5xx) is
+   * just skipped; `lastError` is only surfaced if every provider failed. */
   private async fetchFromProviders(word: string): Promise<{ result: RawResult | null; providerName: string | null; lastError: unknown }> {
-    let lastError: unknown = null;
-    for (const provider of this.providers) {
-      try {
-        const found = await provider.lookup(word);
-        if (found) return { result: found, providerName: provider.name, lastError: null };
-      } catch (err) {
-        lastError = err;
+    const settled = await Promise.allSettled(this.providers.map((provider) => provider.lookup(word)));
+
+    for (let i = 0; i < settled.length; i++) {
+      const outcome = settled[i];
+      if (outcome.status === "fulfilled" && outcome.value) {
+        return { result: outcome.value, providerName: this.providers[i].name, lastError: null };
       }
     }
-    return { result: null, providerName: null, lastError };
+
+    const rejected = settled.find((o): o is PromiseRejectedResult => o.status === "rejected");
+    return { result: null, providerName: null, lastError: rejected?.reason ?? null };
   }
 
   async lookup(rawWord: string): Promise<DictionaryResult | null> {
@@ -330,16 +377,28 @@ export class DictionaryService {
     const ageDays = cached ? (Date.now() - cached.fetchedAt.getTime()) / 86_400_000 : Infinity;
 
     if (cached && ageDays < CACHE_TTL_DAYS) {
-      // A cache hit with no Vietnamese meaning means a *previous* translation
-      // attempt failed — retry just the translation (English data is already
-      // fresh and correct) instead of serving a permanently-broken meaning
-      // for up to 60 days.
-      if (cached.meaningVi === null) {
+      // A cache hit missing its Vietnamese meaning and/or synonyms/antonyms
+      // means a *previous* attempt at that specific piece failed or (for
+      // synonyms/antonyms) predates this enrichment existing at all — retry
+      // just what's missing (the rest of the cached row is already fresh
+      // and correct) instead of serving a permanently-incomplete entry for
+      // up to 60 days.
+      const needsMeaning = cached.meaningVi === null;
+      const needsSynonymsOrAntonyms = cached.synonyms.length === 0 || cached.antonyms.length === 0;
+      if (needsMeaning || needsSynonymsOrAntonyms) {
         const definitions = cached.definitions as unknown as DictionaryDefinition[];
-        const retried = await this.translateOrNull(definitions[0]?.definition ?? word);
-        if (retried) {
-          await db.dictionaryEntry.update({ where: { word }, data: { meaningVi: retried } });
-          return fromCachedRow({ ...cached, meaningVi: retried });
+        const [retriedMeaning, enriched] = await Promise.all([
+          needsMeaning ? this.translateOrNull(definitions[0]?.definition ?? word) : Promise.resolve(cached.meaningVi),
+          needsSynonymsOrAntonyms
+            ? enrichSynonymsAntonyms(word, cached.synonyms, cached.antonyms)
+            : Promise.resolve({ synonyms: cached.synonyms, antonyms: cached.antonyms }),
+        ]);
+        if (retriedMeaning !== cached.meaningVi || enriched.synonyms.length !== cached.synonyms.length || enriched.antonyms.length !== cached.antonyms.length) {
+          await db.dictionaryEntry.update({
+            where: { word },
+            data: { meaningVi: retriedMeaning, synonyms: enriched.synonyms, antonyms: enriched.antonyms },
+          });
+          return fromCachedRow({ ...cached, meaningVi: retriedMeaning, synonyms: enriched.synonyms, antonyms: enriched.antonyms });
         }
       }
       return fromCachedRow(cached);
@@ -375,13 +434,17 @@ export class DictionaryService {
       return null;
     }
 
-    const meaningVi = await this.translateOrNull(fresh.definitions[0]?.definition ?? word);
-    const examples: DictionaryExample[] = await Promise.all(
-      fresh.examples.map(async (ex, i) => ({
-        en: ex.en,
-        vi: i < MAX_TRANSLATED_EXAMPLES ? ((await this.translateOrNull(ex.en)) ?? undefined) : undefined,
-      }))
-    );
+    const [meaningVi, examples, enriched] = await Promise.all([
+      this.translateOrNull(fresh.definitions[0]?.definition ?? word),
+      Promise.all(
+        fresh.examples.map(async (ex, i) => ({
+          en: ex.en,
+          vi: i < MAX_TRANSLATED_EXAMPLES ? ((await this.translateOrNull(ex.en)) ?? undefined) : undefined,
+        }))
+      ),
+      enrichSynonymsAntonyms(word, fresh.synonyms, fresh.antonyms),
+    ]);
+    fresh = { ...fresh, synonyms: enriched.synonyms, antonyms: enriched.antonyms };
 
     await db.dictionaryEntry.upsert({
       where: { word },

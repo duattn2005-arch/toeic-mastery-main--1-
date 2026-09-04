@@ -82,6 +82,10 @@ function resolveProvider(): TranslationProvider {
   }
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class TranslationService {
   private provider: TranslationProvider;
 
@@ -89,11 +93,20 @@ export class TranslationService {
     this.provider = provider;
   }
 
+  /** One retry after a short delay — MyMemory (the default, keyless
+   * provider) fails intermittently (transient network blips, momentary
+   * rate-limit hiccups) in a way a second attempt often just succeeds at,
+   * rather than a persistent per-word problem worth giving up on immediately. */
   async toVietnamese(text: string): Promise<string | null> {
-    try {
-      return await this.provider.translate(text, "vi");
-    } catch {
-      return null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const result = await this.provider.translate(text, "vi");
+        if (result) return result;
+      } catch {
+        // fall through to retry/give up below
+      }
+      if (attempt === 0) await sleep(400);
     }
+    return null;
   }
 }
