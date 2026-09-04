@@ -39,14 +39,10 @@ export function FlashCard({ word, onRate }: { word: FlashCardWord; onRate: (rati
   }
 
   return (
-    <div className="flex flex-col items-center gap-5">
-      <div className="relative h-72 w-full max-w-md [perspective:1200px]">
-        <motion.div
-          className="relative h-full w-full [transform-style:preserve-3d]"
-          animate={{ rotateY: flipped ? 180 : 0 }}
-          transition={{ duration: 0.45 }}
-        >
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-6 shadow-soft [backface-visibility:hidden]">
+    <div className="flex w-full flex-col items-center gap-5">
+      <div className="flex h-72 w-full max-w-md flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-6 text-center shadow-soft">
+        {!flipped ? (
+          <>
             {word.partOfSpeech && (
               <span className="rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-medium text-accent-foreground">{word.partOfSpeech}</span>
             )}
@@ -59,9 +55,9 @@ export function FlashCard({ word, onRate }: { word: FlashCardWord; onRate: (rati
             <Button size="sm" variant="outline" className="mt-4" onClick={() => setFlipped(true)}>
               Lật thẻ
             </Button>
-          </div>
-
-          <div className="absolute inset-0 flex flex-col justify-center gap-2.5 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-soft [backface-visibility:hidden] [transform:rotateY(180deg)]">
+          </>
+        ) : (
+          <div className="flex h-full w-full flex-col justify-center gap-2.5 overflow-y-auto text-left">
             <p className="text-lg font-semibold text-primary">{word.meaningVi}</p>
             {word.definitionEn && <p className="text-sm text-foreground/90">{word.definitionEn}</p>}
             {word.exampleEn && (
@@ -80,7 +76,7 @@ export function FlashCard({ word, onRate }: { word: FlashCardWord; onRate: (rati
               Lật lại
             </Button>
           </div>
-        </motion.div>
+        )}
       </div>
 
       <AnimatePresence>

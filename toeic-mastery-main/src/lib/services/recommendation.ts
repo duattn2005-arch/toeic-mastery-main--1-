@@ -67,5 +67,5 @@ export function generateRecommendations(input: RecommendationInput): Recommendat
     });
   }
 
-  return recs.sort((a, b) => b.priority - a.priority).slice(0, 5);
+  return recs.sort((a, b) => b.priority - a.priority).slice(0, 2);
 }
