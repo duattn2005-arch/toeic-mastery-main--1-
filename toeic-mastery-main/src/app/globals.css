@@ -407,6 +407,17 @@
   }
 }
 
+/* Secure Privacy's (see layout.tsx) persistent "reopen cookie settings"
+   trust badge — a small floating icon it injects after consent is given.
+   Hidden per product decision; #sp-widget is the fixed host id the vendor's
+   own script uses (confirmed from cmp.secureprivacy.ai/secure-privacy-v2.js,
+   which exposes an equivalent sp.hideTrustWidget() targeting the same id),
+   not something specific to this app. Note: with no other visible entry
+   point, users lose the obvious way to reopen cookie preferences later. */
+#sp-widget {
+  display: none !important;
+}
+
 /* Onboarding-tour (driver.js) popover — restyled to match this app's card
    look (rounded-2xl, shadow-soft, theme-aware surface colors) instead of
    driver.js's plain white default, which clashed against dark mode. */
