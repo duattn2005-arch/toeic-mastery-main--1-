@@ -62,11 +62,12 @@ class DictionaryApiDevProvider implements DictionaryProvider {
     try {
       res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`, {
         // Short — this host is known to be network-blocked from this VPS
-        // right now, and every provider runs concurrently (see
+        // right now (100% of requests time out, never a real response), and
+        // every provider runs concurrently (see
         // DictionaryService.fetchFromProviders), so this timeout is the
         // floor on how long a blocked/slow primary can hold up the whole
         // lookup rather than just losing a race to a faster fallback.
-        signal: AbortSignal.timeout(2000),
+        signal: AbortSignal.timeout(1200),
         next: { revalidate: false },
       });
     } catch (err) {
