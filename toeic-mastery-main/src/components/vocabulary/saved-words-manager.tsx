@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FileDown, Gamepad2, Loader2, Star } from "lucide-react";
+import { Crown, FileDown, Gamepad2, Loader2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -40,7 +40,15 @@ function dateBucketLabel(iso: string): string {
   return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-export function SavedWordsManager({ words, categories }: { words: SavedWordRow[]; categories: string[] }) {
+export function SavedWordsManager({
+  words,
+  categories,
+  isPro,
+}: {
+  words: SavedWordRow[];
+  categories: string[];
+  isPro: boolean;
+}) {
   const router = useRouter();
   const [filter, setFilter] = React.useState<string>(ALL);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
@@ -99,6 +107,28 @@ export function SavedWordsManager({ words, categories }: { words: SavedWordRow[]
     router.refresh();
   }
 
+  function handleExportClick() {
+    if (!isPro) {
+      toast.custom((id) => (
+        <button
+          type="button"
+          onClick={() => {
+            toast.dismiss(id);
+            router.push("/pricing");
+          }}
+          className="flex w-full items-center justify-between gap-3 rounded-[var(--border-radius)] border border-[var(--normal-border)] bg-[var(--normal-bg)] px-4 py-3 text-left text-sm text-[var(--normal-text)] shadow-lg"
+        >
+          <span>Xuất file PDF là tính năng Pro. Nâng cấp để xuất từ vựng đã lưu.</span>
+          <span className="shrink-0 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground">
+            Nâng cấp
+          </span>
+        </button>
+      ));
+      return;
+    }
+    setExportOpen(true);
+  }
+
   const studyHref =
     selected.size > 0
       ? `/bookmarks/study?words=${[...selected].join(",")}`
@@ -122,7 +152,7 @@ export function SavedWordsManager({ words, categories }: { words: SavedWordRow[]
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        toast.error(body.error ?? "Xuất file thất bại, vui lòng thử lại");
+        toast.error(body.error === "PRO_REQUIRED" ? "Xuất file PDF là tính năng Pro" : (body.error ?? "Xuất file thất bại, vui lòng thử lại"));
         return;
       }
       const blob = await res.blob();
@@ -149,8 +179,9 @@ export function SavedWordsManager({ words, categories }: { words: SavedWordRow[]
           </Link>
         </Button>
         <AddCustomWordsDialog existingCategories={categories} />
-        <Button type="button" data-tour="bookmarks-export" variant="outline" size="sm" className="w-fit" onClick={() => setExportOpen(true)}>
+        <Button type="button" data-tour="bookmarks-export" variant="outline" size="sm" className="w-fit" onClick={handleExportClick}>
           <FileDown className="size-4" /> Xuất file
+          {!isPro && <Crown className="size-3.5 text-amber-500" />}
         </Button>
 
         {categories.length > 0 && (

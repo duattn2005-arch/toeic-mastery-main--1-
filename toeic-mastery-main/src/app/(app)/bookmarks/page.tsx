@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireUser } from "@/lib/auth";
+import { requireUser, isPro } from "@/lib/auth";
 import { getBookmarks } from "@/lib/data/bookmarks";
 import { BookmarksTabs } from "@/components/bookmarks/bookmarks-tabs";
 
@@ -22,6 +22,7 @@ export default async function BookmarksPage() {
         grammarBookmarks={grammarBookmarks}
         savedWords={savedWords}
         categories={categories}
+        isPro={isPro(profile)}
       />
     </div>
   );

@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
-import { getAuthedProfileOrNull } from "@/lib/auth";
+import { getAuthedProfileOrNull, isPro } from "@/lib/auth";
 import { getSavedWordExportRows } from "@/lib/data/bookmarks";
 import { VocabularyPdfDocument } from "@/lib/pdf/vocabulary-pdf-document";
 
 export async function POST(request: Request) {
   const profile = await getAuthedProfileOrNull();
   if (!profile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // PDF export is a Pro perk (see pro-card.tsx's benefits list) — was never
+  // actually enforced here, so a Free account could hit this route directly.
+  if (!isPro(profile)) return NextResponse.json({ error: "PRO_REQUIRED" }, { status: 403 });
 
   const body = (await request.json().catch(() => ({}))) as { wordIds?: string[] };
   const rows = await getSavedWordExportRows(profile.id, body.wordIds);

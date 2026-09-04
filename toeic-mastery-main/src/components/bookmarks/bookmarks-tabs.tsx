@@ -33,11 +33,13 @@ export function BookmarksTabs({
   grammarBookmarks,
   savedWords,
   categories,
+  isPro,
 }: {
   questionBookmarks: Bookmarks["questionBookmarks"];
   grammarBookmarks: Bookmarks["grammarBookmarks"];
   savedWords: Bookmarks["savedWords"];
   categories: string[];
+  isPro: boolean;
 }) {
   const [activeTab, setActiveTab] = React.useState("questions");
   const hasSavedWords = savedWords.length > 0;
@@ -183,6 +185,7 @@ export function BookmarksTabs({
               createdAt: w.createdAt.toISOString(),
             }))}
             categories={categories}
+            isPro={isPro}
           />
         )}
       </TabsContent>
