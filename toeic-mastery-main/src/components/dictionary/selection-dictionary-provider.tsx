@@ -86,8 +86,8 @@ export function SelectionDictionaryProvider() {
       ref={popupRef}
       role="dialog"
       aria-label={`Từ điển: ${selection.text}`}
-      className="fixed z-[100] animate-in fade-in-0 zoom-in-95 rounded-2xl border border-border bg-popover text-popover-foreground shadow-lg"
-      style={{ left, top, width: POPUP_WIDTH }}
+      className="fixed z-[100] animate-in fade-in-0 zoom-in-95 overflow-y-auto rounded-2xl border border-border bg-popover text-popover-foreground shadow-lg"
+      style={{ left, top, width: POPUP_WIDTH, maxHeight: Math.max(160, window.innerHeight - top - 16) }}
     >
       <button
         type="button"

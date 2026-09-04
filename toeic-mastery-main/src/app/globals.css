@@ -418,6 +418,11 @@
   box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.04), 0 8px 28px -6px hsl(var(--shadow-color) / 0.25);
   padding: 18px;
   max-width: 340px;
+  /* Some steps (e.g. the icon-cluster one) carry enough content to exceed
+     short viewports — cap the popover itself and let it scroll instead of
+     overflowing off-screen with no way to reach the rest. */
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
   font-family: var(--font-sans, inherit);
   animation: popup-frame-glow 2.4s ease-in-out infinite;
 }
