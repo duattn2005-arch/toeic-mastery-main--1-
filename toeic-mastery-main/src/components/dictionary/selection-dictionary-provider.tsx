@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
 
 import { useTextSelection } from "@/hooks/use-text-selection";
 import { useSettingsStore } from "@/store/settings-store";
@@ -89,15 +88,7 @@ export function SelectionDictionaryProvider() {
       className="fixed z-[100] animate-in fade-in-0 zoom-in-95 overflow-y-auto rounded-2xl border border-border bg-popover text-popover-foreground shadow-lg"
       style={{ left, top, width: POPUP_WIDTH, maxHeight: Math.max(160, window.innerHeight - top - 16) }}
     >
-      <button
-        type="button"
-        onClick={clear}
-        className="absolute right-2 top-2 rounded-full p-1 text-muted-foreground hover:bg-muted"
-        aria-label="Đóng"
-      >
-        <X className="size-3.5" />
-      </button>
-      <DictionaryPopupContent word={selection.text} onNavigate={clear} />
+      <DictionaryPopupContent word={selection.text} onNavigate={clear} onClose={clear} />
     </div>,
     document.body
   );

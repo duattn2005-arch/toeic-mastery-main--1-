@@ -131,9 +131,12 @@ export function WordDetailView({
           <Section title="Đồng nghĩa (Synonyms)">
             <div className="flex flex-wrap gap-1.5">
               {result.synonyms.map((s) => (
-                <Badge key={s} variant="outline">
+                <span
+                  key={s}
+                  className="rounded-full border border-success/20 bg-success/10 px-2.5 py-1 text-xs font-medium text-success"
+                >
                   {s}
-                </Badge>
+                </span>
               ))}
             </div>
           </Section>
@@ -142,9 +145,12 @@ export function WordDetailView({
           <Section title="Trái nghĩa (Antonyms)">
             <div className="flex flex-wrap gap-1.5">
               {result.antonyms.map((s) => (
-                <Badge key={s} variant="outline">
+                <span
+                  key={s}
+                  className="rounded-full border border-destructive/20 bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive"
+                >
                   {s}
-                </Badge>
+                </span>
               ))}
             </div>
           </Section>
