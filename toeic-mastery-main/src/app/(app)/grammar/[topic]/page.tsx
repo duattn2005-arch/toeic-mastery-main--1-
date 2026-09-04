@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth";
 import { getGrammarTopicDetail } from "@/lib/data/grammar";
 import { GrammarPracticeQuiz } from "@/components/grammar/grammar-practice-quiz";
-import { GrammarBookmarkButton } from "@/components/grammar/grammar-bookmark-button";
 import { GrammarStudyTimer } from "@/components/grammar/grammar-study-timer";
 
 export async function generateMetadata({ params }: { params: Promise<{ topic: string }> }): Promise<Metadata> {
@@ -12,20 +11,17 @@ export async function generateMetadata({ params }: { params: Promise<{ topic: st
 
 export default async function GrammarTopicPage({ params }: { params: Promise<{ topic: string }> }) {
   const { topic: slug } = await params;
-  const profile = await requireUser();
-  const { topic, lesson, questions, isBookmarked } = await getGrammarTopicDetail(slug, profile.id);
+  await requireUser();
+  const { topic, lesson, questions } = await getGrammarTopicDetail(slug);
 
   const examples = (lesson?.examples as unknown as { en: string; vi: string }[]) ?? [];
 
   return (
     <div className="flex flex-col gap-6">
       <GrammarStudyTimer topicSlug={slug} />
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{topic.title}</h1>
-          {topic.summary && <p className="mt-1 text-sm text-muted-foreground">{topic.summary}</p>}
-        </div>
-        {lesson && <GrammarBookmarkButton grammarLessonId={lesson.id} initialBookmarked={isBookmarked} />}
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">{topic.title}</h1>
+        {topic.summary && <p className="mt-1 text-sm text-muted-foreground">{topic.summary}</p>}
       </div>
 
       {lesson && (

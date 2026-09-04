@@ -15,3 +15,12 @@ export const FREE_DICTIONARY_LOOKUPS_PER_DAY = 15;
  * 1-7), not a flat total, so working through one part doesn't eat into the
  * others' allowance. */
 export const FREE_ANSWER_REVEALS_PER_PART_PER_DAY = 20;
+
+/** Free-tier cap on how many saved questions can be selected in one "Học
+ * lại" (practice again) session from Đã lưu — Pro is unlimited. Enforced
+ * client-side only (SavedQuestionsManager disables further checkboxes past
+ * this): the runner it feeds is a purely local, unscored practice loop (no
+ * Attempt/AttemptAnswer row, no server round-trip per question), so there's
+ * no mutating request to gate server-side the way dictionary lookups or
+ * answer reveals are. */
+export const FREE_SAVED_QUESTIONS_RETRY_LIMIT = 20;

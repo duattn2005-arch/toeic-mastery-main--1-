@@ -9,22 +9,19 @@ export async function getGrammarTopics() {
   });
 }
 
-export async function getGrammarTopicDetail(slug: string, userId: string) {
+export async function getGrammarTopicDetail(slug: string) {
   const topic = await db.grammarTopic.findUnique({
     where: { slug },
     include: { lessons: true },
   });
   if (!topic) notFound();
 
-  const [questions, bookmark] = await Promise.all([
-    db.question.findMany({
-      where: { grammarTopicId: topic.id },
-      include: { options: { orderBy: { label: "asc" } } },
-      orderBy: { orderIndex: "asc" },
-      take: 15,
-    }),
-    topic.lessons[0] ? db.bookmark.findFirst({ where: { userId, type: "GRAMMAR", grammarLessonId: topic.lessons[0].id } }) : null,
-  ]);
+  const questions = await db.question.findMany({
+    where: { grammarTopicId: topic.id },
+    include: { options: { orderBy: { label: "asc" } } },
+    orderBy: { orderIndex: "asc" },
+    take: 15,
+  });
 
-  return { topic, lesson: topic.lessons[0] ?? null, questions, isBookmarked: !!bookmark };
+  return { topic, lesson: topic.lessons[0] ?? null, questions };
 }

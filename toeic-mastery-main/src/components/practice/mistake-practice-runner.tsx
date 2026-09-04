@@ -9,7 +9,7 @@ import { PassageViewer } from "@/components/exam/passage-viewer";
 import { AnswerOptionList } from "@/components/exam/answer-option";
 import { PART_META } from "@/lib/constants/toeic";
 import type { MistakeQuestion } from "@/lib/data/mistakes";
-import { useDictionaryHintNudge } from "@/hooks/use-dictionary-hint-nudge";
+import { useDictionaryHintTutorial } from "@/hooks/use-dictionary-hint-tutorial";
 
 const AUDIO_ONLY_PARTS = new Set(["PART1", "PART2"]);
 
@@ -19,14 +19,25 @@ const AUDIO_ONLY_PARTS = new Set(["PART1", "PART2"]);
  * practice, but the mistake bank itself only clears a question once a real
  * timed attempt confirms it — this is instant feedback for learning, not a
  * replacement for retaking a real test. */
-export function MistakePracticeRunner({ questions }: { questions: MistakeQuestion[] }) {
+export function MistakePracticeRunner({
+  questions,
+  backHref = "/practice/mistakes",
+  backLabel = "Về Ngân hàng lỗi sai",
+}: {
+  questions: MistakeQuestion[];
+  /** Where the "finished" screen's secondary button goes — defaults to the
+   * mistake bank (this component's original caller); pass a different
+   * target when reusing it elsewhere (e.g. Đã lưu's "Học lại" flow). */
+  backHref?: string;
+  backLabel?: string;
+}) {
   const [index, setIndex] = React.useState(0);
   const [selected, setSelected] = React.useState<string | null>(null);
   const [correctCount, setCorrectCount] = React.useState(0);
   const [wrongCount, setWrongCount] = React.useState(0);
   const [finished, setFinished] = React.useState(false);
 
-  useDictionaryHintNudge();
+  const dictionaryHint = useDictionaryHintTutorial();
 
   const current = questions[index];
   const isAudioOnly = current && AUDIO_ONLY_PARTS.has(current.part);
@@ -79,7 +90,7 @@ export function MistakePracticeRunner({ questions }: { questions: MistakeQuestio
             Luyện lại
           </Button>
           <Button asChild>
-            <Link href="/practice/mistakes">Về Ngân hàng lỗi sai</Link>
+            <Link href={backHref}>{backLabel}</Link>
           </Button>
         </div>
       </div>
@@ -88,6 +99,7 @@ export function MistakePracticeRunner({ questions }: { questions: MistakeQuestio
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
+      {dictionaryHint}
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
           Câu {index + 1}/{questions.length}

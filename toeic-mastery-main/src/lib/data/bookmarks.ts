@@ -2,23 +2,60 @@ import "server-only";
 import { db } from "@/lib/db";
 import type { StudyItem } from "@/lib/services/study-game";
 import type { SavedWord } from "@/generated/prisma/client";
+import type { MistakeQuestion } from "@/lib/data/mistakes";
+
+/** Fully-hydrated saved questions (options/passage/correct answer/
+ * explanation included) — needed both to open a question's detail (fixes
+ * the old dead `/history/<testId>` link, which treated a Test id as an
+ * Attempt id and 404'd) and to feed selected questions straight into
+ * MistakePracticeRunner for "Học lại". Order follows the bookmark's own
+ * (most-recently-saved first), not Prisma's default `question.findMany`
+ * order. */
+async function getBookmarkedQuestions(userId: string): Promise<MistakeQuestion[]> {
+  const bookmarks = await db.bookmark.findMany({
+    where: { userId, type: "QUESTION" },
+    orderBy: { createdAt: "desc" },
+    select: { questionId: true },
+  });
+  const orderedIds = bookmarks.map((b) => b.questionId).filter((id): id is string => !!id);
+  if (orderedIds.length === 0) return [];
+
+  const rows = await db.question.findMany({
+    where: { id: { in: orderedIds } },
+    include: { options: { orderBy: { label: "asc" } }, passage: true },
+  });
+  const byId = new Map(rows.map((q) => [q.id, q]));
+
+  return orderedIds
+    .map((id) => byId.get(id))
+    .filter((q): q is NonNullable<typeof q> => !!q)
+    .map((q) => ({
+      id: q.id,
+      part: q.part,
+      prompt: q.prompt,
+      imageUrl: q.imageUrl,
+      audioUrl: q.audioUrl,
+      options: q.options.map((o) => ({ label: o.label, content: o.content })),
+      correctLabel: q.correctLabel,
+      explanationVi: q.explanationVi,
+      passage: q.passage
+        ? {
+            title: q.passage.title,
+            texts: q.passage.texts as { label: string; content: string }[],
+            imageUrl: q.passage.imageUrl,
+            audioUrl: q.passage.audioUrl,
+          }
+        : null,
+    }));
+}
 
 export async function getBookmarks(userId: string) {
-  const [questionBookmarks, grammarBookmarks, savedWords] = await Promise.all([
-    db.bookmark.findMany({
-      where: { userId, type: "QUESTION" },
-      orderBy: { createdAt: "desc" },
-      include: { question: { select: { id: true, part: true, prompt: true, testId: true } } },
-    }),
-    db.bookmark.findMany({
-      where: { userId, type: "GRAMMAR" },
-      orderBy: { createdAt: "desc" },
-      include: { grammarLesson: { select: { slug: true, title: true, topic: { select: { slug: true } } } } },
-    }),
+  const [questionBookmarks, savedWords] = await Promise.all([
+    getBookmarkedQuestions(userId),
     db.savedWord.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
   ]);
 
-  return { questionBookmarks, grammarBookmarks, savedWords };
+  return { questionBookmarks, savedWords };
 }
 
 interface ResolvedSavedWord {
