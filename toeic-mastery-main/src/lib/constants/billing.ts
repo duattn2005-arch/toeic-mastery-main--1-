@@ -17,7 +17,7 @@ export type ProPlanKey = keyof typeof PRO_PLANS;
 export const NEW_MEMBER_OFFER_PERCENT = 25;
 /** One-time welcome-offer window from signup — a hard deadline, not reset by
  * reloading and not repeating once it lapses (see getNewMemberOfferState). */
-export const NEW_MEMBER_OFFER_WINDOW_HOURS = 7;
+export const NEW_MEMBER_OFFER_WINDOW_HOURS = 72;
 
 export function discountedPriceVnd(planKey: ProPlanKey): number {
   const plan = PRO_PLANS[planKey];
