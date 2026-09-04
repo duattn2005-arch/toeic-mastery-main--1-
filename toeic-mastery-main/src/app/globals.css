@@ -392,6 +392,52 @@
   animation: notify-dot-pulse 1.6s ease-in-out infinite;
 }
 
+/* XP shop item frames (XpShopItemVisual): an outer track of orbiting
+   glyph icons per item, spinning around the avatar — reversed/slower on a
+   second inner track for higher-rarity items, so rarity reads as "more
+   motion" rather than just a different badge color. */
+@keyframes spin-reverse-slow {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+.spin-reverse-slow {
+  animation: spin-reverse-slow 9s linear infinite;
+}
+
+@keyframes particle-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.7);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+.particle-twinkle {
+  animation: particle-twinkle 1.8s ease-in-out infinite;
+}
+
+/* Slow hue drift for the rarest (Mythic) item rings — an aurora-like shimmer
+   distinct from the plain rotation every other rarity gets. */
+@keyframes ring-hue-shift {
+  0%,
+  100% {
+    filter: hue-rotate(0deg);
+  }
+  50% {
+    filter: hue-rotate(35deg);
+  }
+}
+
+.ring-hue-shift {
+  animation: ring-hue-shift 4s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hero-ambient,
   .hero-blob,
@@ -400,6 +446,9 @@
   .glow-pulse-primary,
   .popup-glow-frame,
   .spin-slow,
+  .spin-reverse-slow,
+  .particle-twinkle,
+  .ring-hue-shift,
   .mascot-bubble-auto,
   .mascot-jump,
   .notify-dot {
