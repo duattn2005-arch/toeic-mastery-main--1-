@@ -45,8 +45,11 @@ export function AppShell({
       </div>
       <MobileBottomNav />
       <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
-      {newMemberOfferDeadline && <WelcomeOfferModal deadline={newMemberOfferDeadline} />}
-      {profile.plan === "FREE" && <UpgradeNudgeModal hasWelcomeOffer={!!newMemberOfferDeadline} />}
+      {newMemberOfferDeadline ? (
+        <WelcomeOfferModal deadline={newMemberOfferDeadline} />
+      ) : (
+        profile.plan === "FREE" && <UpgradeNudgeModal />
+      )}
     </div>
   );
 }

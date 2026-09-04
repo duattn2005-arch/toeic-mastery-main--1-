@@ -8,21 +8,6 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { NEW_MEMBER_OFFER_PERCENT } from "@/lib/constants/billing";
 
-/** Signals to UpgradeNudgeModal that this modal has resolved its decision
- * for the session (shown-and-dismissed, or determined it won't show at
- * all) — lets the generic nudge wait its turn instead of stacking on top
- * of the real discount offer. Session-scoped, not the lifetime view flag
- * above, since the nudge needs to know per-session, not forever. */
-const WELCOME_OFFER_SESSION_DONE_KEY = "welcome_offer_session_done";
-
-function markWelcomeOfferSessionDone() {
-  try {
-    sessionStorage.setItem(WELCOME_OFFER_SESSION_DONE_KEY, "true");
-  } catch {
-    // Fail open — worst case the nudge modal waits the full timeout.
-  }
-}
-
 /** DashboardTour's own "done" flag (see use-tour-step.ts) — read directly
  * rather than through that hook, since this modal isn't part of the tour
  * and only needs a one-off check, not step tracking. */
@@ -111,7 +96,6 @@ export function WelcomeOfferModal({ deadline }: { deadline: string }) {
 
   function dismiss() {
     setOpen(false);
-    markWelcomeOfferSessionDone();
   }
 
   if (remainingMs <= 0) return null;

@@ -9,13 +9,6 @@ import { Button } from "@/components/ui/button";
 import { PRO_PLANS, planSavingsPercent } from "@/lib/constants/billing";
 
 const SESSION_SHOWN_KEY = "upgrade_nudge_shown_session_v1";
-
-/** WelcomeOfferModal's own flag — read directly rather than through that
- * component, same "one-off check, not step tracking" reasoning it uses for
- * DASHBOARD_TOUR_DONE_KEY. Lets this modal wait its turn on a session where
- * the account also qualifies for the real new-member discount, instead of
- * stacking two upsell dialogs at once. */
-const WELCOME_OFFER_SESSION_DONE_KEY = "welcome_offer_session_done";
 const DASHBOARD_TOUR_DONE_KEY = "tour_dashboard_done";
 const WAIT_TIMEOUT_MS = 90_000;
 const POLL_INTERVAL_MS = 800;
@@ -53,12 +46,14 @@ const HIGHLIGHTS = [
 /** Generic "upgrade to Pro" reminder for Free accounts — unlike
  * WelcomeOfferModal (a real, time-boxed 25% discount only for brand-new
  * signups), this carries no discount claim and no countdown: it shows the
- * regular price and exists purely to keep the upgrade path visible. Reappears
- * once per browser session (sessionStorage, not a lifetime view cap) for as
- * long as the account stays Free — the parent only mounts this component
- * while profile.plan === "FREE", so it stops appearing the moment the
- * account is upgraded, with no dismiss-forever escape hatch. */
-export function UpgradeNudgeModal({ hasWelcomeOffer }: { hasWelcomeOffer: boolean }) {
+ * regular price and exists purely to keep the upgrade path visible. The
+ * parent (app-shell.tsx) only mounts this while the account is Free *and*
+ * not eligible for the welcome offer, so the two never appear in the same
+ * session — this one takes over once the welcome offer has lapsed or been
+ * used. Reappears once per browser session (sessionStorage, not a lifetime
+ * view cap) for as long as the account stays Free, with no dismiss-forever
+ * escape hatch. */
+export function UpgradeNudgeModal() {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
   const recommendedPlan = PRO_PLANS.THREE_MONTHS;
@@ -71,9 +66,7 @@ export function UpgradeNudgeModal({ hasWelcomeOffer }: { hasWelcomeOffer: boolea
       setOpen(true);
     }
 
-    const clearToShow = () =>
-      (pathname !== "/dashboard" || readFlag(DASHBOARD_TOUR_DONE_KEY)) &&
-      (!hasWelcomeOffer || readFlag(WELCOME_OFFER_SESSION_DONE_KEY));
+    const clearToShow = () => pathname !== "/dashboard" || readFlag(DASHBOARD_TOUR_DONE_KEY);
 
     if (clearToShow()) {
       reveal();
