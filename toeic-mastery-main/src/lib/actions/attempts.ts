@@ -9,6 +9,11 @@ import { requireUser, isPro } from "@/lib/auth";
  * rather than a separate counter table. */
 const FREE_FULL_TESTS_PER_DAY = 1;
 const FREE_MINI_TESTS_PER_DAY = 3;
+/** Separate cap on starting Practice mode ("Luyện tập — xem đáp án ngay")
+ * itself, independent of the Exam-mode full/mini caps above — a Free
+ * account can still spend its exam attempts even after using up today's
+ * practice-mode starts, and vice versa. */
+const FREE_PRACTICE_STARTS_PER_DAY = 2;
 
 export async function startAttemptAction(testId: string, mode: "PRACTICE" | "EXAM" = "EXAM") {
   const profile = await requireUser();
@@ -21,18 +26,32 @@ export async function startAttemptAction(testId: string, mode: "PRACTICE" | "EXA
   const test = await db.test.findUniqueOrThrow({ where: { id: testId } });
 
   if (!isPro(profile)) {
+    // Re-checked here, not just hidden in the UI — a Free account could
+    // otherwise submit this form directly against a Pro-only test.
+    if (test.isPro) redirect(`/practice/${testId}?proRequired=1`);
+
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
-    const attemptsToday = await db.attempt.count({
-      where: {
-        userId: profile.id,
-        createdAt: { gte: startOfToday },
-        test: { isFullTest: test.isFullTest },
-      },
-    });
-    const cap = test.isFullTest ? FREE_FULL_TESTS_PER_DAY : FREE_MINI_TESTS_PER_DAY;
-    if (attemptsToday >= cap) {
-      redirect(`/practice/${testId}?limitReached=1`);
+
+    if (mode === "PRACTICE") {
+      const practiceStartsToday = await db.attempt.count({
+        where: { userId: profile.id, mode: "PRACTICE", createdAt: { gte: startOfToday } },
+      });
+      if (practiceStartsToday >= FREE_PRACTICE_STARTS_PER_DAY) {
+        redirect(`/practice/${testId}?practiceLimitReached=1`);
+      }
+    } else {
+      const attemptsToday = await db.attempt.count({
+        where: {
+          userId: profile.id,
+          createdAt: { gte: startOfToday },
+          test: { isFullTest: test.isFullTest },
+        },
+      });
+      const cap = test.isFullTest ? FREE_FULL_TESTS_PER_DAY : FREE_MINI_TESTS_PER_DAY;
+      if (attemptsToday >= cap) {
+        redirect(`/practice/${testId}?limitReached=1`);
+      }
     }
   }
 

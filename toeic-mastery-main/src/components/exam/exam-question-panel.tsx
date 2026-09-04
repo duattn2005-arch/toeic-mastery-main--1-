@@ -11,7 +11,7 @@ import { TtsAudioPlayer } from "@/components/exam/tts-audio-player";
 import { PassageViewer } from "@/components/exam/passage-viewer";
 import { AnswerOptionList } from "@/components/exam/answer-option";
 import { PART_META } from "@/lib/constants/toeic";
-import { FREE_ANSWER_REVEALS_PER_DAY } from "@/lib/constants/limits";
+import { FREE_ANSWER_REVEALS_PER_PART_PER_DAY } from "@/lib/constants/limits";
 import type { ExamData } from "@/lib/data/exam";
 import type { ExamQuestion } from "@/store/exam-store";
 import { ListeningAudioTour } from "@/components/listening/listening-audio-tour";
@@ -148,7 +148,8 @@ export function ExamQuestionPanel({
               <Crown className="size-5 text-primary" />
               <p className="text-sm font-medium">Nâng cấp tài khoản để tiếp tục xem đáp án</p>
               <p className="text-xs text-muted-foreground">
-                Bạn đã dùng hết {FREE_ANSWER_REVEALS_PER_DAY} lượt chữa tức thì miễn phí hôm nay.
+                Bạn đã dùng hết {FREE_ANSWER_REVEALS_PER_PART_PER_DAY} lượt chữa tức thì miễn phí cho{" "}
+                {PART_META[question.part as keyof typeof PART_META].label} hôm nay.
               </p>
               <Button asChild size="sm">
                 <Link href="/pricing">Nâng cấp Pro</Link>

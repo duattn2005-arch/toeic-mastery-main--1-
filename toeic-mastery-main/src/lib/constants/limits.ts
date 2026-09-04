@@ -11,5 +11,7 @@
 export const FREE_DICTIONARY_LOOKUPS_PER_DAY = 15;
 
 /** Free-tier daily cap on "Chữa tức thì" (instant reveal-answer-and-
- * explanation) in Practice mode — Pro is unlimited. */
-export const FREE_ANSWER_REVEALS_PER_DAY = 10;
+ * explanation) in Practice mode — Pro is unlimited. Per TOEIC part (Part
+ * 1-7), not a flat total, so working through one part doesn't eat into the
+ * others' allowance. */
+export const FREE_ANSWER_REVEALS_PER_PART_PER_DAY = 20;

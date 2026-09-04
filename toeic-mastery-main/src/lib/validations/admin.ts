@@ -16,6 +16,7 @@ export const testFormSchema = z.object({
   difficulty: z.enum(DIFFICULTY_VALUES),
   status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]),
   isFullTest: z.boolean(),
+  isPro: z.boolean(),
   durationMinutes: z.coerce.number().int().min(1).max(300),
   listeningQuestions: z.coerce.number().int().min(0).max(200),
   readingQuestions: z.coerce.number().int().min(0).max(200),

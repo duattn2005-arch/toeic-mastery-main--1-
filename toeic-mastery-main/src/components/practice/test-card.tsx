@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Clock, ListChecks, Trophy, Users } from "lucide-react";
+import { Clock, Crown, ListChecks, Trophy, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -28,6 +28,7 @@ export function TestCard({
   progressPercent,
   href,
   ctaLabel,
+  isPro = false,
 }: {
   title: string;
   difficulty: string;
@@ -38,15 +39,23 @@ export function TestCard({
   progressPercent?: number | null;
   href: string;
   ctaLabel: string;
+  isPro?: boolean;
 }) {
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-soft transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
       <span className={cn("absolute inset-x-0 top-0 h-1", DIFFICULTY_BAR[difficulty] ?? "bg-primary")} aria-hidden />
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-semibold leading-snug">{title}</h3>
-        <Badge className={DIFFICULTY_VARIANT[difficulty] ?? ""} variant="secondary">
-          {DIFFICULTY_LABEL_VI[difficulty] ?? difficulty}
-        </Badge>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {isPro && (
+            <Badge variant="outline" className="border-amber-400/50 text-amber-500">
+              <Crown className="size-3" /> Pro
+            </Badge>
+          )}
+          <Badge className={DIFFICULTY_VARIANT[difficulty] ?? ""} variant="secondary">
+            {DIFFICULTY_LABEL_VI[difficulty] ?? difficulty}
+          </Badge>
+        </div>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">

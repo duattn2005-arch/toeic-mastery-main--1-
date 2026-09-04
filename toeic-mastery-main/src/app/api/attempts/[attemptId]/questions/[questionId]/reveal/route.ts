@@ -23,15 +23,15 @@ export async function GET(
     return NextResponse.json({ error: "Đáp án chỉ hiển thị ở chế độ luyện tập hoặc sau khi nộp bài" }, { status: 403 });
   }
 
-  if (await hasReachedRevealLimit(profile)) {
-    return NextResponse.json({ error: "LIMIT_REACHED" }, { status: 403 });
-  }
-
   const question = await db.question.findFirst({
     where: { id: questionId, testId: attempt.testId },
     include: { options: true },
   });
   if (!question) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (await hasReachedRevealLimit(profile, question.part)) {
+    return NextResponse.json({ error: "LIMIT_REACHED" }, { status: 403 });
+  }
 
   await db.answerRevealLog.create({ data: { userId: profile.id, questionId } });
 

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Clock, Crown, ListChecks, Trophy, Users } from "lucide-react";
 
-import { requireUser } from "@/lib/auth";
+import { requireUser, isPro } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,11 +22,12 @@ export default async function TestDetailPage({
   searchParams,
 }: {
   params: Promise<{ testId: string }>;
-  searchParams: Promise<{ limitReached?: string }>;
+  searchParams: Promise<{ limitReached?: string; practiceLimitReached?: string; proRequired?: string }>;
 }) {
   const { testId } = await params;
-  const { limitReached } = await searchParams;
+  const { limitReached, practiceLimitReached, proRequired } = await searchParams;
   const profile = await requireUser();
+  const pro = isPro(profile);
 
   const test = await db.test.findUnique({
     where: { id: testId },
@@ -56,6 +57,11 @@ export default async function TestDetailPage({
             <div className="mb-2 flex items-center gap-2">
               <Badge variant="secondary">{DIFFICULTY_LABEL_VI[test.difficulty]}</Badge>
               {test.isFullTest && <Badge variant="outline">Full Test</Badge>}
+              {test.isPro && (
+                <Badge variant="outline" className="border-amber-400/50 text-amber-500">
+                  <Crown className="size-3" /> Pro
+                </Badge>
+              )}
             </div>
             <h1 className="text-2xl font-semibold tracking-tight">{test.title}</h1>
             {test.description && <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">{test.description}</p>}
@@ -79,10 +85,16 @@ export default async function TestDetailPage({
           )}
         </div>
 
-        {limitReached && (
+        {(limitReached || practiceLimitReached || proRequired) && (
           <div className="mt-5 flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3.5 text-sm">
             <Crown className="size-5 shrink-0 text-primary" />
-            <p className="flex-1">Bạn đã dùng hết lượt làm {test.isFullTest ? "Full Mock Test" : "Mini Test"} miễn phí hôm nay.</p>
+            <p className="flex-1">
+              {proRequired
+                ? "Đề thi này chỉ dành cho tài khoản Pro."
+                : practiceLimitReached
+                  ? "Bạn đã dùng hết lượt Luyện tập (xem đáp án ngay) miễn phí hôm nay."
+                  : `Bạn đã dùng hết lượt làm ${test.isFullTest ? "Full Mock Test" : "Mini Test"} miễn phí hôm nay.`}
+            </p>
             <Button asChild size="sm">
               <Link href="/pricing">Nâng cấp Pro</Link>
             </Button>
@@ -94,6 +106,14 @@ export default async function TestDetailPage({
             <Button size="lg" asChild>
               <Link href={`/exam/${activeAttempt.id}`}>Tiếp tục bài làm dở</Link>
             </Button>
+          ) : test.isPro && !pro ? (
+            <div className="flex items-center gap-3 rounded-xl border border-amber-400/40 bg-amber-500/5 p-3.5 text-sm">
+              <Crown className="size-5 shrink-0 text-amber-500" />
+              <p className="flex-1">Đề thi này chỉ dành cho tài khoản Pro.</p>
+              <Button asChild size="sm">
+                <Link href="/pricing">Nâng cấp Pro</Link>
+              </Button>
+            </div>
           ) : (
             <div data-tour="practice-mode-buttons" className="flex flex-wrap gap-3">
               <form action={startAttemptAction.bind(null, test.id, "EXAM")}>

@@ -78,6 +78,7 @@ export default async function PracticePage({
               progressPercent={test.progressPercent}
               href={test.resumeAttemptId ? `/exam/${test.resumeAttemptId}` : `/practice/${test.id}`}
               ctaLabel={test.resumeAttemptId ? "Tiếp tục" : test.isCompleted ? "Làm lại" : "Bắt đầu"}
+              isPro={test.isPro}
             />
           ))}
         </div>

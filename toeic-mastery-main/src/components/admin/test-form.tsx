@@ -49,7 +49,7 @@ export function TestForm({ testId, defaultValues }: { testId?: string; defaultVa
         <ImageUploader value={watch("thumbnailUrl") ?? ""} onChange={(url) => setValue("thumbnailUrl", url, { shouldValidate: true })} />
       </Field>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
         <Field label="Độ khó">
           <Select value={watch("difficulty")} onValueChange={(v) => setValue("difficulty", v as TestFormInput["difficulty"])}>
             <SelectTrigger>
@@ -81,6 +81,17 @@ export function TestForm({ testId, defaultValues }: { testId?: string; defaultVa
           <div className="flex h-9 items-center">
             <Switch checked={watch("isFullTest")} onCheckedChange={(v) => setValue("isFullTest", v)} />
           </div>
+        </Field>
+        <Field label="Phân loại">
+          <Select value={watch("isPro") ? "PRO" : "FREE"} onValueChange={(v) => setValue("isPro", v === "PRO")}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="FREE">Free</SelectItem>
+              <SelectItem value="PRO">Pro</SelectItem>
+            </SelectContent>
+          </Select>
         </Field>
       </div>
 

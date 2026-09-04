@@ -17,6 +17,7 @@ export default function NewTestPage() {
             difficulty: "MEDIUM",
             status: "DRAFT",
             isFullTest: true,
+            isPro: false,
             durationMinutes: 120,
             listeningQuestions: 100,
             readingQuestions: 100,

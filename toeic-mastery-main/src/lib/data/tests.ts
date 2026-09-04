@@ -66,6 +66,7 @@ export async function getTestList(userId: string, filters: TestListFilters) {
       totalQuestions: t.totalQuestions,
       durationMinutes: t.durationMinutes,
       isFullTest: t.isFullTest,
+      isPro: t.isPro,
       usersCompleted: t._count.attempts,
       bestScore: bestScoreByTest.get(t.id) ?? null,
       isCompleted,

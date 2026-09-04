@@ -290,6 +290,7 @@ model Test {
   difficulty         Difficulty    @default(MEDIUM)
   status             ContentStatus @default(DRAFT)
   isFullTest         Boolean       @default(true) @map("is_full_test")
+  isPro              Boolean       @default(false) @map("is_pro")
   durationMinutes    Int           @default(120) @map("duration_minutes")
   totalQuestions     Int           @default(200) @map("total_questions")
   listeningQuestions Int           @default(100) @map("listening_questions")
@@ -308,6 +309,7 @@ model Test {
 
   @@index([status])
   @@index([isFullTest])
+  @@index([isPro])
   @@map("tests")
 }
 

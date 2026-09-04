@@ -40,6 +40,7 @@ export default async function EditTestPage({ params }: { params: Promise<{ id: s
             difficulty: test.difficulty,
             status: test.status,
             isFullTest: test.isFullTest,
+            isPro: test.isPro,
             durationMinutes: test.durationMinutes,
             listeningQuestions: test.listeningQuestions,
             readingQuestions: test.readingQuestions,
