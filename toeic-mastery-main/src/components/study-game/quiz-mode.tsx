@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { buildQuiz, type QuizQuestion, type StudyItem } from "@/lib/services/study-game";
 import type { ReviewRating } from "@/lib/services/spaced-repetition";
 import { ensureSavedWordAction, unsaveWordIfExistsAction } from "@/lib/actions/dictionary";
-import { useDictionaryHintNudge } from "@/hooks/use-dictionary-hint-nudge";
+import { useDictionaryHintTutorial } from "@/hooks/use-dictionary-hint-tutorial";
 
 /** Wrong-attempt count within THIS quiz session -> the same rating buckets
  * self-rated flashcards use. Never-correct (wrong on every attempt, capped
@@ -61,7 +61,7 @@ export function QuizMode({
   const [applying, setApplying] = React.useState(false);
   const appliedRef = React.useRef(false);
 
-  useDictionaryHintNudge();
+  const dictionaryHint = useDictionaryHintTutorial();
 
   const totalUnique = items.length;
   const current = queue[index];
@@ -165,6 +165,7 @@ export function QuizMode({
 
   return (
     <div className="flex flex-col items-center gap-5">
+      {dictionaryHint}
       <div className="w-full max-w-sm">
         <div className="mb-1.5 flex justify-between text-xs text-muted-foreground">
           <span>

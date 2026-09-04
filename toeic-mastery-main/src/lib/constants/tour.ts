@@ -33,7 +33,11 @@ export const TOUR_STEP_COUNT: Record<TourId, number> = {
   [TOUR_IDS.HISTORY_RESULT]: 2,
 };
 
-/** Global (not per-tour) nudge toasting the "select any word to look it up"
- * dictionary feature — shown at most this many times total, ever. */
+/** Global (not per-tour) interactive nudge for the "select any word to look
+ * it up" dictionary feature — shown at most this many times total (ever)
+ * unless the learner completes it first (selects a word and clicks "Đã
+ * hiểu"), which sets DICTIONARY_HINT_TUTORIAL_DONE_KEY and skips it forever
+ * regardless of the shown count. */
 export const DICTIONARY_HINT_STORAGE_KEY = "dictionary_hint_shown_count";
 export const DICTIONARY_HINT_MAX_SHOWN = 2;
+export const DICTIONARY_HINT_TUTORIAL_DONE_KEY = "dictionary_hint_tutorial_done";

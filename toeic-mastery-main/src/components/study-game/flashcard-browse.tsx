@@ -9,7 +9,7 @@ import type { StudyItem } from "@/lib/services/study-game";
 import type { ReviewRating } from "@/lib/services/spaced-repetition";
 import { RATING_BUTTONS } from "@/components/vocabulary/flash-card";
 import { ensureSavedWordAction, unsaveWordIfExistsAction } from "@/lib/actions/dictionary";
-import { useDictionaryHintNudge } from "@/hooks/use-dictionary-hint-nudge";
+import { useDictionaryHintTutorial } from "@/hooks/use-dictionary-hint-tutorial";
 
 interface QueueEntry extends StudyItem {
   queueKey: string;
@@ -41,7 +41,7 @@ export function FlashcardBrowse({
   const [flipped, setFlipped] = React.useState(false);
   const requeueCounter = React.useRef(items.length);
 
-  useDictionaryHintNudge();
+  const dictionaryHint = useDictionaryHintTutorial();
 
   const item = queue[index];
   const isLast = index === queue.length - 1;
@@ -78,6 +78,7 @@ export function FlashcardBrowse({
 
   return (
     <div className="flex flex-col items-center gap-5">
+      {dictionaryHint}
       <div className="w-full max-w-sm">
         <div className="mb-1.5 flex justify-between text-xs text-muted-foreground">
           <span>

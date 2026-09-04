@@ -16,7 +16,7 @@ import { completeQuickStudySessionAction } from "@/lib/actions/quick-study";
 import type { QuickStudyItem } from "@/lib/data/quick-study";
 import type { ReviewRating } from "@/lib/services/spaced-repetition";
 import { cn } from "@/lib/utils";
-import { useDictionaryHintNudge } from "@/hooks/use-dictionary-hint-nudge";
+import { useDictionaryHintTutorial } from "@/hooks/use-dictionary-hint-tutorial";
 
 const AUDIO_ONLY_PARTS = new Set(["PART1", "PART2"]);
 const AUTO_ADVANCE_MS = 1400;
@@ -57,7 +57,7 @@ export function QuickStudyRunner({
   const requeueCounter = React.useRef(items.length);
   const advanceTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useDictionaryHintNudge();
+  const dictionaryHint = useDictionaryHintTutorial();
 
   React.useEffect(() => {
     remainingSecRef.current = remainingSec;
@@ -193,6 +193,7 @@ export function QuickStudyRunner({
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-5">
+      {dictionaryHint}
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
           Câu {index + 1}/{queue.length}

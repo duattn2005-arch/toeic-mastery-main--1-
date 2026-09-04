@@ -24,7 +24,7 @@ import { ExamQuestionPanel } from "@/components/exam/exam-question-panel";
 import { useExamStore } from "@/store/exam-store";
 import { useExamSync, loadLocalSnapshot } from "@/hooks/use-exam-sync";
 import { useExamMascotState } from "@/hooks/use-exam-mascot";
-import { useDictionaryHintNudge } from "@/hooks/use-dictionary-hint-nudge";
+import { useDictionaryHintTutorial } from "@/hooks/use-dictionary-hint-tutorial";
 import { StudyMascot } from "@/components/mascot/study-mascot";
 import type { ExamData } from "@/lib/data/exam";
 
@@ -35,7 +35,7 @@ export function ExamRunner({ data }: { data: ExamData }) {
   const hydratedRef = React.useRef(false);
 
   useExamSync(data.attemptId);
-  useDictionaryHintNudge();
+  const dictionaryHint = useDictionaryHintTutorial();
 
   React.useEffect(() => {
     if (hydratedRef.current) return;
@@ -142,6 +142,7 @@ export function ExamRunner({ data }: { data: ExamData }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {dictionaryHint}
       <div className="sticky top-16 z-20 -mx-4 flex items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm sm:mx-0 sm:rounded-2xl sm:border sm:px-4">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{data.testTitle}</p>
