@@ -40,7 +40,7 @@ export function XpShopItemCard({ item, userXp, owned }: { item: ShopItem; userXp
   return (
     <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-5 text-center shadow-soft">
       <div className="py-1">
-        <XpShopItemVisual rarity={item.rarity} theme={item.theme} size={84} />
+        <XpShopItemVisual rarity={item.rarity} theme={item.theme} size={92} />
       </div>
 
       <div>
