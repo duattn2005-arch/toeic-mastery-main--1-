@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 800">
+  <defs>
+    <linearGradient id="room" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a4a63"/>
+      <stop offset="1" stop-color="#1c2740"/>
+    </linearGradient>
+    <linearGradient id="win" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5a6a86"/>
+      <stop offset="1" stop-color="#2a3550"/>
+    </linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="24"/></filter>
+  </defs>
+  <rect width="1600" height="800" fill="url(#room)"/>
+  <rect x="520" y="90" width="700" height="560" rx="10" fill="url(#win)"/>
+  <g stroke="#c7d2e6" stroke-width="3" opacity="0.35">
+    <line x1="560" y1="130" x2="500" y2="230"/>
+    <line x1="700" y1="120" x2="630" y2="240"/>
+    <line x1="860" y1="140" x2="790" y2="250"/>
+    <line x1="1000" y1="120" x2="930" y2="230"/>
+    <line x1="1140" y1="140" x2="1070" y2="250"/>
+    <line x1="620" y1="320" x2="560" y2="420"/>
+    <line x1="820" y1="330" x2="760" y2="430"/>
+    <line x1="1020" y1="320" x2="960" y2="420"/>
+    <line x1="1180" y1="330" x2="1120" y2="430"/>
+  </g>
+  <rect x="510" y="86" width="720" height="18" fill="#1c2740"/>
+  <rect x="860" y="86" width="18" height="564" fill="#1c2740"/>
+  <circle cx="360" cy="560" r="90" fill="#f5c26b" opacity="0.5" filter="url(#glow)"/>
+  <path d="M320 640 Q340 500 300 400 Q400 470 380 620 Z" fill="#3f6b4e"/>
+  <path d="M340 640 Q380 520 420 440 Q450 540 400 630 Z" fill="#4d7d5c"/>
+  <rect x="260" y="630" width="180" height="70" rx="8" fill="#2a3550"/>
+  <ellipse cx="1000" cy="705" rx="260" ry="46" fill="#101a30"/>
+  <g fill="#0d0d10">
+    <ellipse cx="1050" cy="672" rx="58" ry="34"/>
+    <circle cx="1010" cy="648" r="18"/>
+    <path d="M1000 640 L992 622 L1012 636 Z"/>
+    <path d="M1024 636 L1034 618 L1042 638 Z"/>
+    <path d="M1108 668 Q1130 660 1150 672" stroke="#0d0d10" stroke-width="6" fill="none"/>
+  </g>
+</svg>

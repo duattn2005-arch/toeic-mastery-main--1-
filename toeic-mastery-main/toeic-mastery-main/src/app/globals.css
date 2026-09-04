@@ -1,0 +1,354 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 1rem;
+
+  /* Base surfaces */
+  --background: #f5f7fb;
+  --foreground: #1c2033;
+  --card: #ffffff;
+  --card-foreground: #1c2033;
+  --popover: #ffffff;
+  --popover-foreground: #1c2033;
+
+  /* Brand: violet / indigo */
+  --primary: #5b4bf0;
+  --primary-foreground: #ffffff;
+  --primary-hover: #4c3cdc;
+  --secondary: #eef0fd;
+  --secondary-foreground: #4638d6;
+  --accent: #f0edff;
+  --accent-foreground: #5b4bf0;
+
+  --muted: #eef1f7;
+  --muted-foreground: #6b7280;
+
+  --destructive: #e5484d;
+  --destructive-foreground: #ffffff;
+  --success: #17a673;
+  --success-foreground: #ffffff;
+  --warning: #f5a524;
+  --warning-foreground: #1c2033;
+  --info: #2f8fe0;
+  --info-foreground: #ffffff;
+
+  --border: #e5e9f2;
+  --input: #e5e9f2;
+  --ring: #9b8afb;
+
+  /* Sidebar: deep navy */
+  --sidebar: #10152b;
+  --sidebar-foreground: #cbd1eb;
+  --sidebar-muted-foreground: #8890b5;
+  --sidebar-active: #ffffff;
+  --sidebar-active-bg: #262d54;
+  --sidebar-border: #232a4d;
+  --sidebar-ring: #7c6cf5;
+
+  /* Chart palette */
+  --chart-1: #5b4bf0;
+  --chart-2: #2f8fe0;
+  --chart-3: #17a673;
+  --chart-4: #f5a524;
+  --chart-5: #e5484d;
+
+  --shadow-color: 222 47% 30%;
+}
+
+.dark {
+  --background: #0b0e1c;
+  --foreground: #e7e9f7;
+  --card: #131730;
+  --card-foreground: #e7e9f7;
+  --popover: #131730;
+  --popover-foreground: #e7e9f7;
+
+  --primary: #7c6cf5;
+  --primary-foreground: #ffffff;
+  --primary-hover: #8f81f7;
+  --secondary: #1c2140;
+  --secondary-foreground: #cdc7ff;
+  --accent: #1c2140;
+  --accent-foreground: #a89bff;
+
+  --muted: #1a1e38;
+  --muted-foreground: #9298bd;
+
+  --destructive: #f2555a;
+  --destructive-foreground: #ffffff;
+  --success: #21c58c;
+  --success-foreground: #071912;
+  --warning: #f7b64c;
+  --warning-foreground: #1c1400;
+  --info: #4da3ea;
+  --info-foreground: #04141f;
+
+  --border: #232849;
+  --input: #232849;
+  --ring: #7c6cf5;
+
+  --sidebar: #070a17;
+  --sidebar-foreground: #cbd1eb;
+  --sidebar-muted-foreground: #7d84ac;
+  --sidebar-active: #ffffff;
+  --sidebar-active-bg: #1e2447;
+  --sidebar-border: #171b34;
+  --sidebar-ring: #7c6cf5;
+
+  --chart-1: #8f81f7;
+  --chart-2: #4da3ea;
+  --chart-3: #21c58c;
+  --chart-4: #f7b64c;
+  --chart-5: #f2555a;
+}
+
+@theme inline {
+  --font-sans: var(--font-inter);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted-foreground: var(--sidebar-muted-foreground);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-sidebar-active-bg: var(--sidebar-active-bg);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --radius-sm: calc(var(--radius) - 8px);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01";
+  }
+  ::selection {
+    background-color: color-mix(in oklab, var(--primary) 25%, transparent);
+  }
+}
+
+@layer utilities {
+  .shadow-soft {
+    box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.04), 0 4px 16px -4px hsl(var(--shadow-color) / 0.08);
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+}
+
+/* Gentle, continuous idle motion for the study mascot — small amplitude and
+   slow, so it reads as "alive" without being distracting. */
+@keyframes mascot-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.mascot-float {
+  animation: mascot-float 4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot-float {
+    animation: none;
+  }
+}
+
+/* Ambient gradient drift for the dashboard hero — noticeably alive on a
+   normal glance (fast enough to catch, four color stops so the traveling
+   position visibly sweeps through distinct hues, not just a faint shimmer). */
+@keyframes hero-gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.hero-ambient {
+  background-image: linear-gradient(120deg, #6a4bf0, #4c3cdc, #2f8fe0, #4c6cf0, #6a4bf0);
+  background-size: 400% 400%;
+  animation: hero-gradient-shift 9s ease-in-out infinite;
+}
+
+@keyframes hero-blob-drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(36px, -28px) scale(1.35);
+  }
+}
+
+.hero-blob {
+  animation: hero-blob-drift 8s ease-in-out infinite;
+}
+
+/* Pulsing glow for "lit up" accents (streak flame, level-up moments). */
+@keyframes glow-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 2px currentColor);
+  }
+  50% {
+    filter: drop-shadow(0 0 9px currentColor);
+  }
+}
+
+.glow-pulse {
+  animation: glow-pulse 2.2s ease-in-out infinite;
+}
+
+/* Pulsing blue background glow — for a nav button that should read as "lit
+   up"/attention-grabbing (Quick Study), distinct from glow-pulse's
+   currentColor drop-shadow which is meant for small icons, not a filled
+   button background. */
+@keyframes button-glow-blue {
+  0%,
+  100% {
+    box-shadow: 0 0 8px -1px rgba(59, 130, 246, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 18px 3px rgba(59, 130, 246, 0.9);
+  }
+}
+
+.glow-pulse-blue {
+  animation: button-glow-blue 2s ease-in-out infinite;
+}
+
+/* Mascot bubble: pops in, holds, then fades itself out — purely CSS-driven
+   (no JS timer/setState) so it can auto-collapse without risking permanently
+   covering page content. Re-keying the element (per state/message) restarts
+   the whole cycle, which is what makes the mascot feel like it's proactively
+   "popping up" rather than sitting in a fixed open/closed toggle. */
+@keyframes mascot-bubble-auto {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.85);
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(0) scale(1.04);
+  }
+  16% {
+    transform: translateY(0) scale(1);
+  }
+  82% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.92);
+  }
+}
+
+.mascot-bubble-auto {
+  animation: mascot-bubble-auto 8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Attention-grabbing bounce for the avatar itself when it has something new
+   to say — a couple of quick hops, then settles back into mascot-float. */
+@keyframes mascot-jump {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  20% {
+    transform: translateY(-10px);
+  }
+  40% {
+    transform: translateY(0);
+  }
+  55% {
+    transform: translateY(-5px);
+  }
+  70% {
+    transform: translateY(0);
+  }
+}
+
+.mascot-jump {
+  animation: mascot-jump 0.9s ease-out 2;
+}
+
+@keyframes notify-dot-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.75;
+  }
+}
+
+.notify-dot {
+  animation: notify-dot-pulse 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-ambient,
+  .hero-blob,
+  .glow-pulse,
+  .glow-pulse-blue,
+  .mascot-bubble-auto,
+  .mascot-jump,
+  .notify-dot {
+    animation: none;
+  }
+}
