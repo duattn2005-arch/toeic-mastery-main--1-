@@ -1,0 +1,62 @@
+name: Deploy to iNET cloud server
+
+# Runs on every push to main: SSHes into the VPS, pulls the new code, installs
+# deps, applies any pending Prisma migrations, rebuilds, and restarts the app
+# — so a push to GitHub is all it takes to update toeicmastery.click.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH and deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_PASSWORD }}
+          script_stop: true
+          script: |
+            set -e
+
+            # Locate the app directory by its package.json "name" rather than
+            # a hardcoded path — this server's actual layout wasn't something
+            # I could inspect ahead of time (no SSH access while writing this
+            # workflow), so the script finds it instead of assuming it.
+            APP_DIR=$(grep -rl '"name": "toeic-mastery"' --include=package.json / --exclude-dir=node_modules 2>/dev/null | head -1 | xargs -r dirname)
+            if [ -z "$APP_DIR" ]; then
+              echo "::error::Could not locate the toeic-mastery app directory on this server."
+              exit 1
+            fi
+            echo "App directory: $APP_DIR"
+            cd "$APP_DIR"
+
+            git pull origin main
+
+            if [ -f pnpm-lock.yaml ]; then
+              corepack enable && pnpm install --frozen-lockfile
+            elif [ -f yarn.lock ]; then
+              yarn install --frozen-lockfile
+            else
+              npm ci
+            fi
+
+            npx prisma generate
+            npx prisma migrate deploy
+
+            npm run build
+
+            # Restart however this app is actually being run — tries PM2,
+            # then a systemd service, then falls back to telling the operator
+            # to do it by hand rather than guessing further.
+            if command -v pm2 >/dev/null 2>&1 && pm2 list | grep -qi toeic; then
+              pm2 restart all
+            elif systemctl list-units --type=service 2>/dev/null | grep -qi toeic; then
+              sudo systemctl restart "$(systemctl list-units --type=service | grep -i toeic | awk '{print $1}' | head -1)"
+            else
+              echo "::warning::Built successfully but couldn't detect a PM2 or systemd process to restart automatically. Restart the app manually."
+            fi
