@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
   cellMeaning: { width: "18%", fontSize: 9 },
   cellExample: { width: "26%", fontSize: 9, color: "#374151" },
   cellNote: { width: "20%", fontSize: 9, borderLeftWidth: 1, borderLeftColor: "#e5e9f2", paddingLeft: 4, minHeight: 24 },
-  headerCell: { fontSize: 9, fontWeight: 700 },
+  headerCell: { fontSize: 9, fontWeight: 700, color: "#ffffff" },
   footer: { position: "absolute", bottom: 20, left: 32, right: 32, fontSize: 8, color: "#9ca3af", textAlign: "center" },
 });
 
@@ -51,12 +51,12 @@ export function VocabularyPdfDocument({ rows, generatedAt }: { rows: SavedWordEx
 
         <View style={styles.table}>
           <View style={styles.headerRow} fixed>
-            <Text style={[styles.headerCell, styles.cellStt]}>STT</Text>
-            <Text style={[styles.headerCell, styles.cellWord]}>Từ</Text>
-            <Text style={[styles.headerCell, styles.cellIpa]}>Phiên âm</Text>
-            <Text style={[styles.headerCell, styles.cellMeaning]}>Nghĩa</Text>
-            <Text style={[styles.headerCell, styles.cellExample]}>Ví dụ</Text>
-            <Text style={[styles.headerCell, styles.cellNote]}>Ghi chú</Text>
+            <Text style={[styles.cellStt, styles.headerCell]}>STT</Text>
+            <Text style={[styles.cellWord, styles.headerCell]}>Từ</Text>
+            <Text style={[styles.cellIpa, styles.headerCell]}>Phiên âm</Text>
+            <Text style={[styles.cellMeaning, styles.headerCell]}>Nghĩa</Text>
+            <Text style={[styles.cellExample, styles.headerCell]}>Ví dụ</Text>
+            <Text style={[styles.cellNote, styles.headerCell]}>Ghi chú</Text>
           </View>
 
           {rows.map((row, i) => (
