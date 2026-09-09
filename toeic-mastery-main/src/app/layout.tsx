@@ -5,7 +5,6 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 
 const GA_MEASUREMENT_ID = "G-GDBZE58K1G";
-const SECURE_PRIVACY_SRC = "https://app.secureprivacy.ai/script/6a9942ee4e74644db5656e70.js";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -30,15 +29,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="vi" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full bg-background font-sans text-foreground" suppressHydrationWarning>
-        {/* beforeInteractive scripts are always injected as high as possible in
-            <head>, ahead of everything else, regardless of where they sit in
-            this tree — that's what a cookie consent manager needs (load before
-            any other tracking script gets a chance to run). Secure Privacy
-            replaces CookieHub (removed) — running two consent managers at
-            once would fight over showing/dismissing their own banners, the
-            same class of stacking bug already found and fixed for the
-            onboarding tour. */}
-        <Script src={SECURE_PRIVACY_SRC} strategy="beforeInteractive" />
+        {/* Secure Privacy (cookie consent banner) is temporarily disabled: its
+            backend throws a NullReferenceException fetching this domain's
+            banner template (GetWidgetTemplatePublic -> SelectStateOrFederal-
+            TemplateByDomainIdAsync), so the banner rendered but its Accept/
+            Decline/Customize buttons never responded. Re-add the <Script>
+            src="https://app.secureprivacy.ai/script/6a9942ee4e74644db5656e70.js"
+            strategy="beforeInteractive" once toeicmastery.click is verified
+            against a template in the Secure Privacy dashboard. */}
         <Providers>{children}</Providers>
         <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`} strategy="afterInteractive" />
         <Script id="google-analytics" strategy="afterInteractive">
