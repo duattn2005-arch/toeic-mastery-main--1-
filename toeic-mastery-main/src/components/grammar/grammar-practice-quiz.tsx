@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { AnswerOptionList } from "@/components/exam/answer-option";
+import { AskMentorButton } from "@/components/shared/ask-mentor-button";
 
 interface QuizOption {
   label: string;
@@ -45,7 +46,12 @@ export function GrammarPracticeQuiz({ questions }: { questions: QuizQuestion[] }
               correctLabel={selected ? q.correctLabel : null}
               onSelect={(label) => setAnswers((prev) => ({ ...prev, [q.id]: label }))}
             />
-            {selected && <p className="mt-3 rounded-lg bg-accent/50 p-3 text-xs text-foreground/90">{q.explanationVi}</p>}
+            {selected && (
+              <div className="mt-3 flex flex-col gap-2 rounded-lg bg-accent/50 p-3">
+                <p className="text-xs text-foreground/90">{q.explanationVi}</p>
+                <AskMentorButton questionId={q.id} />
+              </div>
+            )}
           </div>
         );
       })}

@@ -12,6 +12,7 @@ import {
 } from "@/lib/validations/admin";
 import type { TestPart } from "@/generated/prisma/enums";
 import { getOrCreatePracticePool, syncIfPracticePool } from "@/lib/services/practice-pool";
+import { deleteEmbeddings } from "@/lib/services/mentor/mentor-rag";
 
 export interface ActionResult {
   error?: string;
@@ -156,6 +157,9 @@ export async function deleteQuestionAction(questionId: string): Promise<ActionRe
   const existing = await db.question.findUnique({ where: { id: questionId }, select: { testId: true, part: true } });
   await db.question.delete({ where: { id: questionId } });
   if (existing) await syncIfPracticePool(existing.testId, existing.part);
+  // AI Mentor's RAG index would otherwise still cite this question's
+  // explanation forever — never fails the delete itself.
+  void deleteEmbeddings("QUESTION_EXPLANATION", questionId).catch((err) => console.error("deleteEmbeddings failed", err));
   revalidatePath("/admin/questions");
   return {};
 }

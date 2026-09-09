@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { AudioPlayer } from "@/components/exam/audio-player";
 import { PassageViewer } from "@/components/exam/passage-viewer";
 import { AnswerOptionList } from "@/components/exam/answer-option";
+import { AskMentorButton } from "@/components/shared/ask-mentor-button";
 import { PART_META } from "@/lib/constants/toeic";
 import type { MistakeQuestion } from "@/lib/data/mistakes";
 import { useDictionaryHintTutorial } from "@/hooks/use-dictionary-hint-tutorial";
@@ -132,7 +133,12 @@ export function MistakePracticeRunner({
           hideText={isAudioOnly && !selected}
         />
 
-        {selected && <p className="text-xs text-muted-foreground">{current.explanationVi}</p>}
+        {selected && (
+          <div className="flex flex-col items-start gap-2">
+            <p className="text-xs text-muted-foreground">{current.explanationVi}</p>
+            <AskMentorButton questionId={current.id} />
+          </div>
+        )}
       </div>
 
       {selected && (

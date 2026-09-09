@@ -12,6 +12,7 @@ import { TtsAudioPlayer } from "@/components/exam/tts-audio-player";
 import { PassageViewer } from "@/components/exam/passage-viewer";
 import { AnswerOptionList } from "@/components/exam/answer-option";
 import { ReportQuestionDialog } from "@/components/history/report-question-dialog";
+import { AskMentorButton } from "@/components/shared/ask-mentor-button";
 import { toggleQuestionBookmarkAction, saveQuestionVocabularyAction } from "@/lib/actions/bookmarks";
 import type { QuestionReview } from "@/lib/data/history";
 
@@ -37,7 +38,7 @@ function StatusBadge({ review }: { review: QuestionReview }) {
   );
 }
 
-export function QuestionReviewCard({ review, index }: { review: QuestionReview; index: number }) {
+export function QuestionReviewCard({ review, index, attemptId }: { review: QuestionReview; index: number; attemptId: string }) {
   const [open, setOpen] = React.useState(false);
   const [bookmarked, setBookmarked] = React.useState(review.isBookmarked);
   const [bookmarkPending, startBookmarkTransition] = React.useTransition();
@@ -152,6 +153,7 @@ export function QuestionReviewCard({ review, index }: { review: QuestionReview; 
             <Button size="sm" variant="outline" disabled={vocabPending} onClick={handleSaveVocabulary}>
               <Star className="size-3.5" /> Lưu từ vựng
             </Button>
+            <AskMentorButton questionId={review.id} attemptId={attemptId} />
             <ReportQuestionDialog questionId={review.id} />
           </div>
         </div>

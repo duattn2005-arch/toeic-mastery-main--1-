@@ -5,6 +5,10 @@ import { ScoreCalculator } from "@/lib/services/score-calculator";
 import { LISTENING_PARTS } from "@/lib/constants/toeic";
 import { MAX_STUDY_SYNC_GAP_SEC } from "@/lib/constants/study";
 import { toDateOnlyUTC } from "@/lib/utils";
+import { recordAttemptOutcomes } from "@/lib/services/mentor/skill-mastery";
+import { flagWeakVocabFromAttempt } from "@/lib/services/mentor/vocab-ledger";
+import { generateLearningPath } from "@/lib/services/mentor/learning-path-generator";
+import { replanUpcomingDays } from "@/lib/services/mentor/learning-path-replanner";
 import type { TestPart } from "@/generated/prisma/enums";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ attemptId: string }> }) {
@@ -104,6 +108,12 @@ export async function POST(_request: Request, { params }: { params: Promise<{ at
     MAX_STUDY_SYNC_GAP_SEC
   );
 
+  // AI Mentor onboarding (Module 1): this attempt counts as the learner's
+  // placement test if they were waiting on one and it produced a real
+  // score. Flips them straight to READY — no separate "confirm placement"
+  // step — and a personalized LearningPath is generated right after.
+  const completesOnboarding = totalScore !== null && profile.onboardingStatus === "PLACEMENT_PENDING" && profile.targetScore !== null;
+
   await db.$transaction([
     db.attempt.update({
       where: { id: attemptId },
@@ -137,9 +147,27 @@ export async function POST(_request: Request, { params }: { params: Promise<{ at
         streakCount: nextStreak,
         longestStreak: Math.max(profile.longestStreak, nextStreak),
         ...(totalScore !== null ? { currentScore: totalScore } : {}),
+        ...(completesOnboarding ? { onboardingStatus: "READY" as const, onboardingCompletedAt: new Date() } : {}),
       },
     }),
   ]);
+
+  // Fire-and-forget: AI Mentor's skill rollup, weak-vocab enrollment, and
+  // path upkeep. Must never block or fail the submit response itself.
+  // replanUpcomingDays is chained after recordAttemptOutcomes (not run in
+  // parallel with it) so it reads SkillMastery only once this attempt's
+  // outcomes are actually reflected in it — otherwise it could race ahead
+  // on stale data. Skipped when this attempt just completed onboarding:
+  // generateLearningPath below already builds upcoming days from the
+  // freshest data, so replanning them again immediately is redundant.
+  void recordAttemptOutcomes(profile.id, attemptId)
+    .then(() => (completesOnboarding ? undefined : replanUpcomingDays(profile.id)))
+    .catch((err) => console.error("recordAttemptOutcomes/replanUpcomingDays failed", err));
+  void flagWeakVocabFromAttempt(profile.id, attemptId).catch((err) => console.error("flagWeakVocabFromAttempt failed", err));
+  if (completesOnboarding) {
+    void generateLearningPath({ userId: profile.id, targetScore: profile.targetScore!, examDate: profile.examDate })
+      .catch((err) => console.error("generateLearningPath failed", err));
+  }
 
   return NextResponse.json({ attemptId });
 }

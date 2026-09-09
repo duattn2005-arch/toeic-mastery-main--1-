@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, CheckCircle2, Clock, Star } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { AudioPlayer } from "@/components/exam/audio-player";
 import { AnswerOptionList } from "@/components/exam/answer-option";
+import { AskMentorButton } from "@/components/shared/ask-mentor-button";
 import { RATING_BUTTONS } from "@/components/vocabulary/flash-card";
 import { practiceVocabularyWordAction } from "@/lib/actions/vocabulary";
 import { toggleSaveWordAction, ensureSavedWordAction, unsaveWordIfExistsAction } from "@/lib/actions/dictionary";
@@ -222,7 +223,12 @@ export function QuickStudyRunner({
             hideText={isAudioOnly && !selected}
           />
 
-          {selected && <p className="text-xs text-muted-foreground">{current.explanationVi}</p>}
+          {selected && (
+            <div className="flex flex-col items-start gap-2">
+              <p className="text-xs text-muted-foreground">{current.explanationVi}</p>
+              <AskMentorButton questionId={current.id} />
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-card p-6 text-center shadow-soft">

@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { testFormSchema, type TestFormInput } from "@/lib/validations/admin";
 import { PART_META } from "@/lib/constants/toeic";
+import { deleteEmbeddingsForSources } from "@/lib/services/mentor/mentor-rag";
 import type { TestPart } from "@/generated/prisma/enums";
 
 export interface ActionResult {
@@ -114,7 +115,16 @@ export async function deleteTestAction(testId: string): Promise<ActionResult> {
     return { error: "Đây là ngân hàng câu hỏi luyện tập tự động — xóa nó sẽ xóa luôn toàn bộ câu hỏi bên trong. Hãy xóa/di chuyển từng câu hỏi thay vì xóa đề này." };
   }
 
+  // Collect the doomed question ids before the cascade deletes them — once
+  // db.test.delete resolves there's nothing left to look them up by.
+  const doomedQuestions = await db.question.findMany({ where: { testId }, select: { id: true } });
+
   await db.test.delete({ where: { id: testId } });
+
+  void deleteEmbeddingsForSources("QUESTION_EXPLANATION", doomedQuestions.map((q) => q.id)).catch((err) =>
+    console.error("deleteEmbeddingsForSources failed", err)
+  );
+
   revalidatePath("/admin/tests");
   return {};
 }

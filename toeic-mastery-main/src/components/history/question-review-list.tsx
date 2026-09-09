@@ -7,7 +7,7 @@ import type { QuestionReview } from "@/lib/data/history";
 
 type FilterKey = "ALL" | "CORRECT" | "WRONG" | "SKIPPED" | "FLAGGED";
 
-export function QuestionReviewList({ reviews }: { reviews: QuestionReview[] }) {
+export function QuestionReviewList({ reviews, attemptId }: { reviews: QuestionReview[]; attemptId: string }) {
   const [filter, setFilter] = React.useState<FilterKey>("ALL");
 
   const filtered = reviews.filter((r) => {
@@ -62,7 +62,9 @@ export function QuestionReviewList({ reviews }: { reviews: QuestionReview[] }) {
         {filtered.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">Không có câu hỏi nào trong mục này.</p>
         ) : (
-          filtered.map((review) => <QuestionReviewCard key={review.id} review={review} index={reviews.indexOf(review)} />)
+          filtered.map((review) => (
+            <QuestionReviewCard key={review.id} review={review} index={reviews.indexOf(review)} attemptId={attemptId} />
+          ))
         )}
       </div>
     </div>

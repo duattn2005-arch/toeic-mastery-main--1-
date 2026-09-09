@@ -10,6 +10,7 @@ import { AudioPlayer } from "@/components/exam/audio-player";
 import { TtsAudioPlayer } from "@/components/exam/tts-audio-player";
 import { PassageViewer } from "@/components/exam/passage-viewer";
 import { AnswerOptionList } from "@/components/exam/answer-option";
+import { AskMentorButton } from "@/components/shared/ask-mentor-button";
 import { PART_META } from "@/lib/constants/toeic";
 import { FREE_ANSWER_REVEALS_PER_PART_PER_DAY } from "@/lib/constants/limits";
 import type { ExamData } from "@/lib/data/exam";
@@ -178,6 +179,7 @@ export function ExamQuestionPanel({
                   {reveal.evidenceText}
                 </p>
               )}
+              <AskMentorButton questionId={question.id} attemptId={attemptId} />
             </div>
           )}
           {revealError && revealError !== "LIMIT_REACHED" && <p className="mt-2 text-xs text-destructive">{revealError}</p>}

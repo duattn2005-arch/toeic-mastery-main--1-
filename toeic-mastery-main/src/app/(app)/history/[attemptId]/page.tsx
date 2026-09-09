@@ -65,7 +65,7 @@ export default async function AttemptResultPage({ params }: { params: Promise<{ 
 
       <section data-tour="history-result-questions">
         <h2 className="mb-3 text-sm font-semibold text-muted-foreground">XEM LẠI ĐÁP ÁN</h2>
-        <QuestionReviewList reviews={questionReviews} />
+        <QuestionReviewList reviews={questionReviews} attemptId={attemptId} />
       </section>
 
       <StudyMascot state="success" character="rabbit" message={`Bạn vừa nhận +${xpEarned} XP từ bài này! 🎉`} />

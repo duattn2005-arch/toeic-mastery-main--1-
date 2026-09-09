@@ -24,3 +24,15 @@ export const FREE_ANSWER_REVEALS_PER_PART_PER_DAY = 20;
  * no mutating request to gate server-side the way dictionary lookups or
  * answer reveals are. */
 export const FREE_SAVED_QUESTIONS_RETRY_LIMIT = 20;
+
+/**
+ * AI Mentor chat itself is open to every plan — Free and Pro both get the
+ * same conversational interface and can ask anything, unlimited. The one
+ * gated surface is the "next step" learning-path suggestion (the assistant
+ * proactively recommending what to study next, or the quick-action button
+ * that asks for it directly): Free gets a bounded number of those per day
+ * before being nudged to upgrade; Pro is unlimited. See
+ * src/lib/services/mentor/mentor-access.ts.
+ */
+export const FREE_MENTOR_NEXT_STEPS_PER_DAY = 4;
+export const FREE_MENTOR_SUGGESTED_ITEMS = 4;

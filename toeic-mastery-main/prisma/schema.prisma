@@ -156,6 +156,80 @@ enum ThemePreference {
   SYSTEM
 }
 
+// --- AI Mentor ---------------------------------------------------------------
+
+enum OnboardingStatus {
+  NOT_STARTED
+  PLACEMENT_PENDING
+  READY
+}
+
+enum VocabOrigin {
+  MANUAL
+  AI_DETECTED_WEAKNESS
+}
+
+enum MentorRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum MentorConversationStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum SkillDimensionType {
+  PART
+  GRAMMAR_TOPIC
+  VOCAB_TOPIC
+}
+
+enum LearningPathStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+enum LearningDayStatus {
+  LOCKED
+  UNLOCKED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum LearningItemType {
+  GRAMMAR_LESSON
+  VOCAB_TOPIC
+  VOCAB_REVIEW
+  LISTENING_PRACTICE
+  READING_PRACTICE
+  MINI_TEST
+  FULL_TEST
+  TIP
+}
+
+enum LearningItemStatus {
+  PENDING
+  DONE
+  SKIPPED
+}
+
+enum MentorTestStatus {
+  PENDING
+  IN_PROGRESS
+  PASSED
+  FAILED
+}
+
+enum EmbeddingSourceType {
+  GRAMMAR_LESSON
+  VOCABULARY_WORD
+  QUESTION_EXPLANATION
+  VOCABULARY_TOPIC
+}
+
 // ---------------------------------------------------------------------------
 // Identity
 // ---------------------------------------------------------------------------
@@ -190,6 +264,15 @@ model Profile {
   currentScore            Int?      @map("current_score")
   targetScore             Int?      @map("target_score")
   examDate                DateTime? @map("exam_date") @db.Date
+  /**
+   * Drives whether AI Mentor opens with the goal/placement-test onboarding
+   * chat or goes straight to today's LearningPathDay — see
+   * src/lib/services/mentor/onboarding.ts. NOT_STARTED until the mentor
+   * chat has captured a goal; PLACEMENT_PENDING once a goal is known but no
+   * score baseline exists yet; READY once a LearningPath can be generated.
+   */
+  onboardingStatus        OnboardingStatus @default(NOT_STARTED) @map("onboarding_status")
+  onboardingCompletedAt   DateTime? @map("onboarding_completed_at")
   dailyStudyTargetMinutes Int       @default(30) @map("daily_study_target_minutes")
   streakCount             Int       @default(0) @map("streak_count")
   longestStreak           Int       @default(0) @map("longest_streak")
@@ -229,6 +312,12 @@ model Profile {
   payments          Payment[]
   redeemedCodes     ActivationCode[]
   shopItems         UserShopItem[]
+  mentorConversations MentorConversation[]
+  mentorMemory      MentorMemory?
+  skillMastery      SkillMastery[]
+  skillUnlocks      SkillUnlock[]
+  learningPaths     LearningPath[]
+  mentorTests       MentorTest[]
 
   referredBy        Profile?           @relation("Referrals", fields: [referredByProfileId], references: [id], onDelete: SetNull)
   referrals         Profile[]          @relation("Referrals")
@@ -410,6 +499,8 @@ model Question {
   bookmarks    Bookmark[]
   reports      QuestionReport[]
   revealLogs   AnswerRevealLog[]
+  mentorConversationOrigins MentorConversation[]
+  mentorTestAppearances     MentorTestQuestion[]
 
   @@index([testId, part, orderIndex])
   @@index([part])
@@ -460,6 +551,7 @@ model Attempt {
   answers      AttemptAnswer[]
   scoreHistory ScoreHistory[]
   studySession StudySession?
+  mentorConversationOrigins MentorConversation[]
 
   @@index([userId, status])
   @@index([testId])
@@ -479,6 +571,7 @@ model AttemptAnswer {
 
   attempt  Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  flaggedVocabulary UserVocabulary[]
 
   @@unique([attemptId, questionId])
   @@map("attempt_answers")
@@ -665,15 +758,26 @@ model UserVocabulary {
   nextReviewDate   DateTime  @default(now()) @map("next_review_date") @db.Date
   lastReviewedAt   DateTime? @map("last_reviewed_at")
   isLearned        Boolean   @default(false) @map("is_learned")
+  /**
+   * MANUAL (user saved it themselves) vs AI_DETECTED_WEAKNESS (AI Mentor
+   * auto-enrolled it after a wrong Reading/Listening answer touched this
+   * word — see Question.vocabularyFocus and
+   * src/lib/services/mentor/vocab-ledger.ts). Lets the UI badge
+   * AI-flagged words and the export route filter to just those.
+   */
+  origin                VocabOrigin @default(MANUAL) @map("origin")
+  sourceAttemptAnswerId String?     @map("source_attempt_answer_id") @db.Uuid
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
   user           Profile            @relation(fields: [userId], references: [id], onDelete: Cascade)
   vocabularyWord VocabularyWord     @relation(fields: [vocabularyWordId], references: [id], onDelete: Cascade)
   reviews        VocabularyReview[]
+  sourceAttemptAnswer AttemptAnswer? @relation(fields: [sourceAttemptAnswerId], references: [id], onDelete: SetNull)
 
   @@unique([userId, vocabularyWordId])
   @@index([userId, nextReviewDate])
+  @@index([userId, origin])
   @@map("user_vocabulary")
 }
 
@@ -1010,4 +1114,281 @@ model UserShopItem {
   @@unique([userId, itemId])
   @@index([userId])
   @@map("user_shop_items")
+}
+
+// ---------------------------------------------------------------------------
+// AI Mentor — chat, long-term memory, skill rollups, personalized path
+// ---------------------------------------------------------------------------
+//
+// Design note: the mentor never invents new TOEIC questions. MentorTest only
+// ever curates existing, admin-vetted `Question` rows (filtered by part /
+// difficulty / grammarTopicSlug / vocabularyFocus) — the LLM decides *which*
+// questions to assign and writes the surrounding explanation, never the
+// question content or answer key itself. This keeps every score/explanation
+// a learner sees backed by reviewed content.
+
+model MentorConversation {
+  id     String                    @id @default(uuid()) @db.Uuid
+  userId String                    @map("user_id") @db.Uuid
+  title  String?
+  status MentorConversationStatus @default(ACTIVE)
+
+  /**
+   * Question/Attempt this conversation was opened from (e.g. the "Hỏi AI
+   * Mentor" button on a practice question) — lets the first turn carry full
+   * context without the model asking the user to repeat it. Null for
+   * conversations opened from the onboarding chat or the mentor's own entry
+   * point.
+   */
+  originQuestionId String? @map("origin_question_id") @db.Uuid
+  originAttemptId  String? @map("origin_attempt_id") @db.Uuid
+
+  lastMessageAt DateTime @default(now()) @map("last_message_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user           Profile             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  originQuestion Question?           @relation(fields: [originQuestionId], references: [id], onDelete: SetNull)
+  originAttempt  Attempt?            @relation(fields: [originAttemptId], references: [id], onDelete: SetNull)
+  messages       MentorMessage[]
+  generatedTests MentorTest[]
+
+  @@index([userId, lastMessageAt])
+  @@map("mentor_conversations")
+}
+
+model MentorMessage {
+  id             String     @id @default(uuid()) @db.Uuid
+  conversationId String     @map("conversation_id") @db.Uuid
+  role           MentorRole
+  content        String
+
+  /**
+   * Structured payload rendered alongside the text bubble — recommendation
+   * cards, a generated MentorTest reference, weak-word chips. Kept separate
+   * from `content` so the SSE stream only ever carries plain text tokens;
+   * this is written once, after the stream finishes.
+   */
+  attachments Json?
+
+  /** Null until the stream finishes — used for cost tracking and context
+   * budgeting, not for anything user-facing. */
+  tokenCount Int?    @map("token_count")
+  modelId    String? @map("model_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  conversation MentorConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("mentor_messages")
+}
+
+/**
+ * Rolling long-term memory per user — a periodically re-summarized digest
+ * ("hôm qua user vướng câu hỏi đuôi ở Part 6, đã hẹn ôn lại hôm nay") kept
+ * separate from raw MentorMessage rows so prompt context stays a small,
+ * bounded summary instead of replaying entire chat history every turn.
+ * Regenerated by src/lib/services/mentor/memory-summarizer.ts whenever
+ * unsummarized message count crosses a threshold.
+ */
+model MentorMemory {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @unique @map("user_id") @db.Uuid
+  summary           String
+  summarizedThrough DateTime? @map("summarized_through")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mentor_memories")
+}
+
+/**
+ * Derived rollup, recomputed from Attempt/AttemptAnswer/StudySession after
+ * each submitted attempt (see skill-mastery.ts) — not a second source of
+ * truth for raw events. Lets the mentor answer "what's weak" with one
+ * indexed lookup instead of scanning attempt_answers on every chat turn.
+ */
+model SkillMastery {
+  id              String             @id @default(uuid()) @db.Uuid
+  userId          String             @map("user_id") @db.Uuid
+  dimensionType   SkillDimensionType @map("dimension_type")
+  /** TestPart value for PART, GrammarTopic.slug for GRAMMAR_TOPIC,
+   * VocabularyTopic.slug for VOCAB_TOPIC. */
+  dimensionKey    String             @map("dimension_key")
+  attemptedCount  Int                @default(0) @map("attempted_count")
+  correctCount    Int                @default(0) @map("correct_count")
+  /** Exponentially-weighted accuracy (recent attempts count more), 0-1. */
+  masteryScore    Float              @default(0) @map("mastery_score")
+  lastPracticedAt DateTime?          @map("last_practiced_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dimensionType, dimensionKey])
+  @@index([userId, masteryScore])
+  @@map("skill_mastery")
+}
+
+/**
+ * Progressive-difficulty gate ("phải vượt qua test mới mở phần khó hơn") —
+ * one row per user x dimension once they clear a difficulty tier.
+ */
+model SkillUnlock {
+  id            String             @id @default(uuid()) @db.Uuid
+  userId        String             @map("user_id") @db.Uuid
+  dimensionType SkillDimensionType @map("dimension_type")
+  dimensionKey  String             @map("dimension_key")
+  difficulty    Difficulty         @default(EASY)
+  unlockedAt    DateTime           @default(now()) @map("unlocked_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dimensionType, dimensionKey, difficulty])
+  @@map("skill_unlocks")
+}
+
+/**
+ * Per-user, AI-generated daily curriculum spanning every content type
+ * (grammar, vocab, listening/reading practice, mini-tests) — distinct from
+ * the existing `VocabularyPath`, which is a single static 20-day
+ * vocabulary-only curriculum shared by every learner.
+ *
+ * `userId` is deliberately NOT unique: a learner can go through several
+ * paths over the life of an account (finishes one, sets a new target score
+ * after a placement retest, etc). App code enforces "at most one ACTIVE
+ * path per user" and reads the current one via
+ * `findFirst({ where: { userId, status: "ACTIVE" }, orderBy: { createdAt: "desc" } })`.
+ */
+model LearningPath {
+  id          String             @id @default(uuid()) @db.Uuid
+  userId      String             @map("user_id") @db.Uuid
+  status      LearningPathStatus @default(ACTIVE)
+  targetScore Int                @map("target_score")
+  examDate    DateTime?          @map("exam_date") @db.Date
+  /** Why the AI structured the path this way — shown in a "Vì sao lộ trình
+   * này?" tooltip and fed back into the next regeneration prompt. */
+  rationale   String?
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  user Profile           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  days LearningPathDay[]
+
+  @@index([userId, status])
+  @@map("learning_paths")
+}
+
+model LearningPathDay {
+  id            String            @id @default(uuid()) @db.Uuid
+  pathId        String            @map("path_id") @db.Uuid
+  dayNumber     Int               @map("day_number")
+  scheduledDate DateTime          @map("scheduled_date") @db.Date
+  focusParts    TestPart[]        @default([]) @map("focus_parts")
+  status        LearningDayStatus @default(LOCKED)
+  summary       String?
+  completedAt   DateTime?         @map("completed_at")
+  createdAt     DateTime          @default(now()) @map("created_at")
+
+  path  LearningPath        @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  items LearningPathItem[]
+
+  @@unique([pathId, dayNumber])
+  @@index([pathId, scheduledDate])
+  @@map("learning_path_days")
+}
+
+/**
+ * One study unit inside a day. `refId` is polymorphic per `itemType`,
+ * mirroring the existing Bookmark pattern rather than a junction table per
+ * content type — VOCAB_REVIEW has no refId (it means "today's SRS-due
+ * queue", already computable from user_vocabulary).
+ */
+model LearningPathItem {
+  id         String              @id @default(uuid()) @db.Uuid
+  dayId      String              @map("day_id") @db.Uuid
+  itemType   LearningItemType    @map("item_type")
+  refId      String?             @map("ref_id") @db.Uuid
+  orderIndex Int                 @default(0) @map("order_index")
+  status     LearningItemStatus  @default(PENDING)
+  createdAt  DateTime            @default(now()) @map("created_at")
+
+  day LearningPathDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+
+  @@index([dayId, orderIndex])
+  @@map("learning_path_items")
+}
+
+/**
+ * AI-curated mini test — selects existing published Questions matching a
+ * weak dimension/difficulty rather than generating new question content
+ * (see the design note at the top of this section).
+ */
+model MentorTest {
+  id             String             @id @default(uuid()) @db.Uuid
+  userId         String             @map("user_id") @db.Uuid
+  conversationId String?            @map("conversation_id") @db.Uuid
+  dimensionType  SkillDimensionType @map("dimension_type")
+  dimensionKey   String             @map("dimension_key")
+  /** Difficulty tier this test was generated at — see
+   * mentor-test-generator.ts's generateMentorTest, which always resolves
+   * this from SkillUnlock rather than letting a caller guess it. Passing
+   * this test unlocks exactly this tier via skill-mastery.ts's
+   * unlockNextDifficulty; storing it here means submit-time never has to
+   * re-derive (and risk a race with) what was actually being tested. */
+  difficulty     Difficulty         @default(EASY)
+  status         MentorTestStatus   @default(PENDING)
+  passThreshold  Float              @default(0.8) @map("pass_threshold")
+  score          Float?
+  startedAt      DateTime?          @map("started_at")
+  completedAt    DateTime?          @map("completed_at")
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  user         Profile              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation MentorConversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  questions    MentorTestQuestion[]
+
+  @@index([userId, status])
+  @@map("mentor_tests")
+}
+
+model MentorTestQuestion {
+  id            String    @id @default(uuid()) @db.Uuid
+  mentorTestId  String    @map("mentor_test_id") @db.Uuid
+  questionId    String    @map("question_id") @db.Uuid
+  orderIndex    Int       @default(0) @map("order_index")
+  selectedLabel String?   @map("selected_label") @db.VarChar(1)
+  isCorrect     Boolean?  @map("is_correct")
+  answeredAt    DateTime? @map("answered_at")
+
+  mentorTest MentorTest @relation(fields: [mentorTestId], references: [id], onDelete: Cascade)
+  question   Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([mentorTestId, questionId])
+  @@map("mentor_test_questions")
+}
+
+/**
+ * RAG vector store — pgvector on this same self-hosted Postgres instance,
+ * no separate vector-DB service. 1024 dims matches Voyage AI's voyage-3
+ * (see src/lib/services/mentor/embeddings.ts); revisit if the embedding
+ * provider changes. Prisma can't author the `vector` extension or its
+ * ivfflat/hnsw index — see the hand-written migration SQL for that part,
+ * and mentor-rag.ts's use of $queryRaw for similarity search.
+ */
+model ContentEmbedding {
+  id              String              @id @default(uuid()) @db.Uuid
+  sourceType      EmbeddingSourceType @map("source_type")
+  sourceId        String              @map("source_id") @db.Uuid
+  chunkIndex      Int                 @default(0) @map("chunk_index")
+  content         String
+  embedding       Unsupported("vector(1024)")
+  embeddingModel  String              @map("embedding_model")
+  /** Source row's `updatedAt` at embed time — a background job re-embeds
+   * whenever the live row is newer than this. */
+  sourceUpdatedAt DateTime            @map("source_updated_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+
+  @@unique([sourceType, sourceId, chunkIndex])
+  @@map("content_embeddings")
 }

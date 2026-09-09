@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { vocabularyWordFormSchema, type VocabularyWordFormInput } from "@/lib/validations/admin";
+import { deleteEmbeddings } from "@/lib/services/mentor/mentor-rag";
 
 export interface ActionResult {
   error?: string;
@@ -79,6 +80,7 @@ export async function bulkCreateVocabularyWordsAction(
 export async function deleteVocabularyWordAction(wordId: string): Promise<ActionResult> {
   await requireAdmin();
   await db.vocabularyWord.delete({ where: { id: wordId } });
+  void deleteEmbeddings("VOCABULARY_WORD", wordId).catch((err) => console.error("deleteEmbeddings failed", err));
   revalidatePath("/admin/vocabulary");
   return {};
 }
