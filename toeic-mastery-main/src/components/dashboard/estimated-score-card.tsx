@@ -26,7 +26,7 @@ export function EstimatedScoreCard({ score, className }: { score: number | null;
 
   return (
     <Link
-      href="/practice?category=FULL"
+      href="/practice/start"
       className={cn(
         "col-span-2 flex flex-col justify-between gap-2 rounded-2xl border border-primary/30 bg-primary/5 p-4 shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg sm:col-span-1",
         className

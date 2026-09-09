@@ -82,3 +82,25 @@ export async function getTestList(userId: string, filters: TestListFilters) {
 }
 
 export type TestListItem = Awaited<ReturnType<typeof getTestList>>[number];
+
+/**
+ * Picks one test for "Làm bài test thử" (take a trial test) to jump
+ * straight into, skipping the practice list entirely — the most-attempted
+ * published full test, preferring a free (non-Pro) one so a brand-new
+ * account never gets bounced into a paywall on their very first click.
+ */
+export async function getTrialFullTestId(): Promise<string | null> {
+  const free = await db.test.findFirst({
+    where: { status: "PUBLISHED", isFullTest: true, isPro: false },
+    orderBy: { attempts: { _count: "desc" } },
+    select: { id: true },
+  });
+  if (free) return free.id;
+
+  const any = await db.test.findFirst({
+    where: { status: "PUBLISHED", isFullTest: true },
+    orderBy: { attempts: { _count: "desc" } },
+    select: { id: true },
+  });
+  return any?.id ?? null;
+}

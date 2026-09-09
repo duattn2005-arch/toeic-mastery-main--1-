@@ -45,7 +45,7 @@ export function HeroAuthButtons() {
         </Link>
       </Button>
       <Button size="lg" variant="outline" asChild>
-        <Link href="/practice?category=FULL">Làm bài test thử</Link>
+        <Link href="/practice/start">Làm bài test thử</Link>
       </Button>
     </>
   );
