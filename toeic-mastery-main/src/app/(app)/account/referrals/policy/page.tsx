@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { requireUser } from "@/lib/auth";
 import {
   COMMISSION_CONFIRM_DAYS,
   COMMISSION_TIERS,
@@ -20,7 +21,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function ReferralPolicyPage() {
+export default async function ReferralPolicyPage() {
+  await requireUser();
   return (
     <div className="flex flex-col gap-6">
       <div>

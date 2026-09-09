@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { requireUser } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Kết quả thanh toán" };
 
@@ -14,6 +15,7 @@ export const metadata: Metadata = { title: "Kết quả thanh toán" };
  * hedge in the success copy.
  */
 export default async function UpgradeReturnPage({ searchParams }: { searchParams: Promise<{ vnp_ResponseCode?: string }> }) {
+  await requireUser();
   const { vnp_ResponseCode } = await searchParams;
   const isSuccess = vnp_ResponseCode === "00";
 

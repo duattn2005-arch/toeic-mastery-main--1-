@@ -2,7 +2,12 @@ import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server
 import { SESSION_COOKIE, SESSION_REFRESH_THRESHOLD_SEC, sessionCookieOptions, signSessionToken, verifySessionToken } from "@/lib/auth/session";
 
 const AUTH_ROUTES = ["/login", "/register", "/forgot-password", "/reset-password"];
-const PUBLIC_ROUTES = ["/", ...AUTH_ROUTES];
+// "/practice" is a deliberate exception to the app-wide login gate: a
+// logged-out visitor lands on the real page with an inline "log in to
+// continue" prompt (see LoginRequiredGate) instead of being redirected here.
+// Exact-pathname match, so nested routes like /practice/[testId] and
+// /practice/mistakes are unaffected and still require a session.
+const PUBLIC_ROUTES = ["/", "/practice", ...AUTH_ROUTES];
 
 /** First-touch attribution cookie: whichever referral link a visitor
  * clicks first is kept for 60 days, even if they later click a different

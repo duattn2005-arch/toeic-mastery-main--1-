@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { requireUser } from "@/lib/auth";
 import { getVocabularyTopics } from "@/lib/data/vocabulary";
 import { TopicSectionGrid } from "@/components/vocabulary/topic-section-grid";
 
 export const metadata: Metadata = { title: "Chủ đề từ vựng" };
 
 export default async function VocabularyTopicsPage() {
+  await requireUser();
   const topics = await getVocabularyTopics();
 
   return (

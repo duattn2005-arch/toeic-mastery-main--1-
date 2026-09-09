@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { BookOpen, CheckCircle2, Clock3, Layers, Lightbulb, ListChecks, PlayCircle, Radar as RadarIcon, Target } from "lucide-react";
+import { BookOpen, CheckCircle2, Clock3, Layers, Lightbulb, ListChecks, PlayCircle, Radar as RadarIcon } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
 import { getDashboardData } from "@/lib/data/dashboard";
@@ -13,6 +13,7 @@ import { ContinueLearningCard } from "@/components/dashboard/continue-learning-c
 import { RecommendationList } from "@/components/dashboard/recommendation-list";
 import { DueWordList } from "@/components/vocabulary/due-word-list";
 import { DashboardHero } from "@/components/dashboard/dashboard-hero";
+import { EstimatedScoreCard } from "@/components/dashboard/estimated-score-card";
 import { DashboardTour } from "@/components/dashboard/dashboard-tour";
 import { StudyMascot } from "@/components/mascot/study-mascot";
 import type { MascotState } from "@/components/mascot/types";
@@ -80,7 +81,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 ${REVEAL[1]}`}>
-        <StatCard icon={Target} label="Điểm ước tính" value={score ?? "—"} hint="/ 990" accent="primary" />
+        <EstimatedScoreCard score={score ?? null} />
         <StatCard icon={CheckCircle2} label="Độ chính xác" value={`${Math.round(data.overallStats.accuracy * 100)}%`} accent="success" />
         <StatCard icon={ListChecks} label="Đề đã hoàn thành" value={data.overallStats.attemptsCompleted} accent="info" />
         <StatCard icon={Layers} label="Từ vựng đã học" value={data.overallStats.vocabularyLearned} accent="warning" />

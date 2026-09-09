@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SpellCheck2 } from "lucide-react";
+import { requireUser } from "@/lib/auth";
 import { getGrammarTopics } from "@/lib/data/grammar";
 import { GrammarTour } from "@/components/grammar/grammar-tour";
 
 export const metadata: Metadata = { title: "Ngữ pháp" };
 
 export default async function GrammarPage() {
+  await requireUser();
   const topics = await getGrammarTopics();
 
   return (

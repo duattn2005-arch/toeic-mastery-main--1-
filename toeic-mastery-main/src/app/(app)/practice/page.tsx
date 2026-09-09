@@ -3,13 +3,14 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ClipboardList, ListX } from "lucide-react";
 
-import { requireUser } from "@/lib/auth";
+import { getCurrentProfile } from "@/lib/auth";
 import { getTestList, type TestListFilters } from "@/lib/data/tests";
 import { getMistakeCount } from "@/lib/data/mistakes";
 import { PracticeFilters } from "@/components/practice/practice-filters";
 import { TestCard } from "@/components/practice/test-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PracticeTour } from "@/components/practice/practice-tour";
+import { LoginRequiredGate } from "@/components/practice/login-required-gate";
 
 export const metadata: Metadata = { title: "Luyện đề" };
 
@@ -20,7 +21,7 @@ export default async function PracticePage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const profile = await requireUser();
+  const profile = await getCurrentProfile();
   const params = await searchParams;
 
   const rawCategory = typeof params.category === "string" ? params.category : "ALL";
@@ -30,6 +31,18 @@ export default async function PracticePage({
     completion: (typeof params.completion === "string" ? params.completion : "ALL") as TestListFilters["completion"],
     sort: (typeof params.sort === "string" ? params.sort : "NEWEST") as TestListFilters["sort"],
   };
+
+  if (!profile) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Luyện đề</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Chọn đề thi phù hợp với mục tiêu của bạn.</p>
+        </div>
+        <LoginRequiredGate />
+      </div>
+    );
+  }
 
   const [tests, mistakeCount] = await Promise.all([getTestList(profile.id, filters), getMistakeCount(profile.id)]);
 
