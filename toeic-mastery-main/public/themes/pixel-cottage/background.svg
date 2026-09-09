@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 800" shape-rendering="crispEdges">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f6c67a"/>
+      <stop offset="1" stop-color="#c98a4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="800" fill="#4a3423"/>
+  <rect x="480" y="90" width="640" height="480" fill="url(#sky)"/>
+  <rect x="460" y="70" width="680" height="30" fill="#231509"/>
+  <rect x="460" y="70" width="30" height="520" fill="#231509"/>
+  <rect x="1110" y="70" width="30" height="520" fill="#231509"/>
+  <rect x="460" y="560" width="680" height="30" fill="#231509"/>
+  <rect x="780" y="90" width="20" height="480" fill="#231509"/>
+  <rect x="480" y="320" width="640" height="20" fill="#231509"/>
+  <g fill="#e8b64a">
+    <rect x="700" y="150" width="40" height="40"/>
+    <rect x="660" y="190" width="40" height="40"/>
+    <rect x="740" y="190" width="40" height="40"/>
+    <rect x="620" y="230" width="40" height="40"/>
+    <rect x="700" y="230" width="40" height="40"/>
+    <rect x="780" y="230" width="40" height="40"/>
+  </g>
+  <g fill="#6f9c4f">
+    <rect x="500" y="500" width="640" height="60"/>
+    <rect x="520" y="470" width="60" height="40"/>
+    <rect x="960" y="460" width="80" height="60"/>
+    <rect x="1020" y="490" width="60" height="40"/>
+  </g>
+  <g fill="#3f6b4e">
+    <rect x="500" y="530" width="640" height="30"/>
+  </g>
+  <rect x="0" y="580" width="1600" height="220" fill="#3a2818"/>
+  <g fill="#5a4028">
+    <rect x="0" y="580" width="1600" height="20"/>
+  </g>
+</svg>
