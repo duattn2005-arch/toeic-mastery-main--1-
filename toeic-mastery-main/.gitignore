@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# local-dev-only file uploads (UPLOADS_DIR pointed at public/ so `next dev` serves them)
+/public/uploads/
+
 # production
 /build
 

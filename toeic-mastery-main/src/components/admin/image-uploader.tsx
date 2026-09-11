@@ -19,11 +19,7 @@ export function ImageUploader({ value, onChange }: { value: string; onChange: (u
   const [uploading, setUploading] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-
+  async function uploadFile(file: File) {
     if (!ACCEPTED_TYPES.includes(file.type)) {
       toast.error("Chỉ hỗ trợ ảnh PNG, JPEG hoặc WebP");
       return;
@@ -51,6 +47,23 @@ export function ImageUploader({ value, onChange }: { value: string; onChange: (u
     }
   }
 
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    await uploadFile(file);
+  }
+
+  function handlePaste(e: React.ClipboardEvent<HTMLInputElement>) {
+    const file = Array.from(e.clipboardData?.items ?? [])
+      .filter((item) => item.kind === "file" && ACCEPTED_TYPES.includes(item.type))
+      .map((item) => item.getAsFile())
+      .find((f): f is File => f !== null);
+    if (!file || uploading) return;
+    e.preventDefault();
+    void uploadFile(file);
+  }
+
   return (
     <div className="flex flex-col gap-1.5">
       {value && (
@@ -68,7 +81,13 @@ export function ImageUploader({ value, onChange }: { value: string; onChange: (u
         </div>
       )}
       <div className="flex gap-2">
-        <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder="https://.../anh.png (hoặc tải file lên)" className="flex-1" />
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onPaste={handlePaste}
+          placeholder="https://.../anh.png (hoặc tải file lên, hoặc dán ảnh bằng Ctrl+V)"
+          className="flex-1"
+        />
         <input ref={inputRef} type="file" accept={ACCEPTED_TYPES.join(",")} className="hidden" onChange={handleFileChange} />
         <button
           type="button"
