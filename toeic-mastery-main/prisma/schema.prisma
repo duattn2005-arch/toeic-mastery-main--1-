@@ -378,7 +378,7 @@ model UserSettings {
    * src/lib/constants/site-themes.ts). Plain string, not an enum, so new
    * themes can ship without a migration.
    */
-  siteTheme              String          @default("aurora") @map("site_theme")
+  siteTheme              String          @default("lily-pond-cat") @map("site_theme")
   language               String          @default("vi")
   audioAutoplay          Boolean         @default(true) @map("audio_autoplay")
   defaultPlaybackSpeed   Float           @default(1) @map("default_playback_speed")

@@ -7,10 +7,10 @@ import { getSiteTheme } from "@/lib/constants/site-themes";
  * passages, exam questions, vocab tables all still sit on their own opaque
  * `bg-card` surfaces, unaffected).
  *
- * Renders nothing for the default "aurora" theme — that case keeps
- * app-shell's plain `bg-background`, zero visual change for anyone who
- * hasn't picked a theme. No "use client" needed: plain CSS + a native
- * autoplaying <video>, no hooks.
+ * Renders nothing for the "aurora" theme (media: "gradient") — that case
+ * keeps app-shell's plain `bg-background`. Every other theme, including
+ * DEFAULT_SITE_THEME_ID, renders its image/video here. No "use client"
+ * needed: plain CSS + a native autoplaying <video>, no hooks.
  */
 export function SiteThemeBackground({ themeId }: { themeId: string }) {
   const theme = getSiteTheme(themeId);

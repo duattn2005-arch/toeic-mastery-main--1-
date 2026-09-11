@@ -37,13 +37,13 @@ export interface SiteTheme {
   swatchTo: string;
 }
 
-export const DEFAULT_SITE_THEME_ID = "aurora";
+export const DEFAULT_SITE_THEME_ID = "lily-pond-cat";
 
 export const SITE_THEMES: SiteTheme[] = [
   {
     id: "aurora",
     name: "Aurora",
-    description: "Gradient chuyển động tím – xanh dương (mặc định).",
+    description: "Gradient chuyển động tím – xanh dương.",
     tier: "FREE",
     media: "gradient",
     swatchFrom: "#6a4bf0",
@@ -52,7 +52,7 @@ export const SITE_THEMES: SiteTheme[] = [
   {
     id: "lily-pond-cat",
     name: "Mèo đen bên hồ sen",
-    description: "Chú mèo viết bài dưới lá sen giữa hồ hoa súng.",
+    description: "Chú mèo viết bài dưới lá sen giữa hồ hoa súng (mặc định).",
     tier: "FREE",
     media: "image",
     previewSrc: "/themes/lily-pond-cat/background.svg",
