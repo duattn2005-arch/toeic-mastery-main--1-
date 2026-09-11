@@ -5,6 +5,7 @@ import { Pause, Play, RotateCcw, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
+import { useListeningAudioStore } from "@/store/listening-audio-store";
 
 const SPEEDS = [0.75, 1, 1.25, 1.5];
 
@@ -49,6 +50,18 @@ export function AudioPlayer({
     if (!audio) return;
     audio.playbackRate = speed;
   }, [speed]);
+
+  // Ducks the background-music widget (SoundPlayerPopover) while this
+  // listening audio is actually playing, via the effect-cleanup pattern:
+  // increment fires when `playing` becomes true, and the cleanup (fired on
+  // the next change OR unmount) decrements — so it self-balances even if
+  // the component unmounts mid-playback (navigating away, next question).
+  React.useEffect(() => {
+    if (!playing) return;
+    const store = useListeningAudioStore.getState();
+    store.increment();
+    return () => store.decrement();
+  }, [playing]);
 
   function handlePlayPause() {
     const audio = audioRef.current;

@@ -29,6 +29,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useAmbientSounds } from "@/hooks/use-ambient-sounds";
 import { useYouTubePlayer } from "@/hooks/use-youtube-player";
 import { useAmbientStore } from "@/store/ambient-store";
+import { useListeningAudioStore } from "@/store/listening-audio-store";
 import { extractYouTubeVideoId } from "@/lib/youtube";
 import { cn } from "@/lib/utils";
 import type { AmbientSoundId } from "@/lib/services/ambient-sound-engine";
@@ -81,6 +82,33 @@ export function SoundPlayerPopover() {
     yt.loadVideo(currentTrack.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- yt is stable across renders
   }, [yt.ready, currentTrack?.id]);
+
+  const listeningAudioPlaying = useListeningAudioStore((s) => s.playingCount > 0);
+  const duckedRef = React.useRef<{ ambientIds: AmbientSoundId[]; ytWasPlaying: boolean } | null>(null);
+
+  // Ducks this background-music widget while a TOEIC listening audio (Part
+  // 1-4 question audio, anywhere in the app — real exams, Mistake Practice,
+  // Quick Study) is actually playing, so the two never overlap, then
+  // restores only what this effect itself paused — a track the learner had
+  // already paused manually before starting the listening audio doesn't get
+  // resumed out from under them.
+  React.useEffect(() => {
+    if (listeningAudioPlaying) {
+      if (duckedRef.current) return;
+      const ambientIds = [...activeIds];
+      const ytWasPlaying = yt.isPlaying;
+      duckedRef.current = { ambientIds, ytWasPlaying };
+      ambientIds.forEach((id) => toggle(id));
+      if (ytWasPlaying) yt.pause();
+    } else {
+      const snapshot = duckedRef.current;
+      duckedRef.current = null;
+      if (!snapshot) return;
+      snapshot.ambientIds.forEach((id) => toggle(id));
+      if (snapshot.ytWasPlaying) yt.play();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to the listening-audio flag; activeIds/toggle/yt are read fresh at the moment it flips
+  }, [listeningAudioPlaying]);
 
   function handleVolumeChange(value: number[]) {
     const v = value[0] / 100;
