@@ -3,6 +3,13 @@ import { db } from "@/lib/db";
 import { getAuthedProfileOrNull } from "@/lib/auth";
 import { getMentorAccess, hasReachedNextStepsLimit } from "@/lib/services/mentor/mentor-access";
 import { getNextStepSuggestions } from "@/lib/services/mentor/next-steps";
+import type { Prisma } from "@/generated/prisma/client";
+
+/** Prisma's Json input type requires structural compatibility our narrow
+ * interfaces don't declare (no index signature) — this is a plain data cast. */
+function toJsonInput<T>(value: T): Prisma.InputJsonValue {
+  return value as unknown as Prisma.InputJsonValue;
+}
 
 /**
  * "Gợi ý học tiếp" quick action — the same suggestion the chat marker
@@ -57,7 +64,7 @@ export async function POST(request: Request) {
       conversationId,
       role: "ASSISTANT",
       content: summaryText,
-      attachments: { type: "next_steps", items: suggestions },
+      attachments: toJsonInput({ type: "next_steps", items: suggestions }),
     },
     select: { id: true },
   });

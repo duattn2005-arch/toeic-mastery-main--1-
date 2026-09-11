@@ -8,6 +8,13 @@ import { maybeSummarizeMemory } from "@/lib/services/mentor/memory-summarizer";
 import { generateMentorTest } from "@/lib/services/mentor/mentor-test-generator";
 import { getNextStepSuggestions } from "@/lib/services/mentor/next-steps";
 import type { SkillDimensionType } from "@/generated/prisma/enums";
+import type { Prisma } from "@/generated/prisma/client";
+
+/** Prisma's Json input type requires structural compatibility our narrow
+ * interfaces don't declare (no index signature) — this is a plain data cast. */
+function toJsonInput<T>(value: T): Prisma.InputJsonValue {
+  return value as unknown as Prisma.InputJsonValue;
+}
 
 /**
  * Open-ended chat for every plan, streamed over SSE (see
@@ -122,7 +129,7 @@ export async function POST(request: Request) {
                 conversationId,
                 role: "ASSISTANT",
                 content: visibleText,
-                attachments,
+                attachments: attachments === undefined ? undefined : toJsonInput(attachments),
                 tokenCount: usage.outputTokens,
                 modelId: getActiveChatModelId(),
               },
