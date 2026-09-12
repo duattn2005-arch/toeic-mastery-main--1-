@@ -12,10 +12,17 @@ export function PassageViewer({
   title,
   texts,
   imageUrl,
+  priority = false,
 }: {
   title?: string | null;
   texts: PassageText[];
   imageUrl?: string | null;
+  /** Set for the currently-visible passage in the live exam-taking flow so
+   * its image fetches immediately instead of waiting on lazy-load — leave
+   * off wherever many of these can render on one page at once (e.g. an
+   * attempt review list), since marking all of those priority would just
+   * make them all compete for bandwidth instead of loading any one faster. */
+  priority?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
@@ -23,7 +30,7 @@ export function PassageViewer({
 
       {imageUrl && (
         <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-muted">
-          <Image src={imageUrl} alt="" fill className="object-contain" sizes="(max-width: 768px) 100vw, 480px" />
+          <Image src={imageUrl} alt="" fill priority={priority} className="object-contain" sizes="(max-width: 768px) 100vw, 480px" />
         </div>
       )}
 

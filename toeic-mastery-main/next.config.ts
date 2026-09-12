@@ -9,6 +9,12 @@ import type { NextConfig } from "next";
 const uploadsUrl = process.env.NEXT_PUBLIC_UPLOADS_URL ? new URL(process.env.NEXT_PUBLIC_UPLOADS_URL) : null;
 
 const nextConfig: NextConfig = {
+  // sharp ships native (.node) bindings — bundling it like ordinary JS
+  // breaks those at runtime, so it must stay an external require both for
+  // Next's own image optimizer (handled automatically) and for our own
+  // direct `import sharp` in src/lib/upload.ts (this entry is what makes
+  // that one work too).
+  serverExternalPackages: ["sharp"],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "api.dicebear.com" },

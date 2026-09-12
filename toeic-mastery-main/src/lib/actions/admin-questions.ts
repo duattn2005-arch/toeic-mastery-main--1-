@@ -13,6 +13,7 @@ import {
 import type { TestPart } from "@/generated/prisma/enums";
 import { getOrCreatePracticePool, syncIfPracticePool } from "@/lib/services/practice-pool";
 import { deleteEmbeddings } from "@/lib/services/mentor/mentor-rag";
+import { reserveQuestionOrderIndex } from "@/lib/services/question-order";
 
 export interface ActionResult {
   error?: string;
@@ -46,31 +47,40 @@ export async function createQuestionAction(input: QuestionFormInput): Promise<Ac
     testSectionId = pool.testSectionId;
   }
 
-  const question = await db.question.create({
-    data: {
-      testId,
-      testSectionId,
-      part: data.part,
-      prompt: data.prompt || "",
-      imageUrl: data.imageUrl || null,
-      audioUrl: data.audioUrl || null,
-      transcript: data.transcript || null,
-      correctLabel: data.correctLabel,
-      explanationVi: data.explanationVi,
-      grammarTopicSlug: data.grammarTopicSlug || null,
-      vocabularyFocus: splitList(data.vocabularyFocus),
-      evidenceText: data.evidenceText || null,
-      difficulty: data.difficulty,
-      status: data.status,
-      options: {
-        create: data.options.map((o) => ({
-          label: o.label,
-          content: o.content,
-          isCorrect: o.label === data.correctLabel,
-          distractorExplanation: o.distractorExplanation || null,
-        })),
+  // Reserving a position within this part's own existing block (shifting
+  // later questions aside) rather than defaulting to orderIndex 0 or
+  // appending after the test's overall max — either of those is how a real,
+  // live test's part sections previously ended up interleaved instead of
+  // contiguous once content got added to it in more than one sitting.
+  const question = await db.$transaction(async (tx) => {
+    const orderIndex = await reserveQuestionOrderIndex(tx, testId, data.part);
+    return tx.question.create({
+      data: {
+        testId,
+        testSectionId,
+        part: data.part,
+        orderIndex,
+        prompt: data.prompt || "",
+        imageUrl: data.imageUrl || null,
+        audioUrl: data.audioUrl || null,
+        transcript: data.transcript || null,
+        correctLabel: data.correctLabel,
+        explanationVi: data.explanationVi,
+        grammarTopicSlug: data.grammarTopicSlug || null,
+        vocabularyFocus: splitList(data.vocabularyFocus),
+        evidenceText: data.evidenceText || null,
+        difficulty: data.difficulty,
+        status: data.status,
+        options: {
+          create: data.options.map((o) => ({
+            label: o.label,
+            content: o.content,
+            isCorrect: o.label === data.correctLabel,
+            distractorExplanation: o.distractorExplanation || null,
+          })),
+        },
       },
-    },
+    });
   });
 
   // Syncs regardless of whether testId came from auto-routing above or was
@@ -89,7 +99,7 @@ export async function updateQuestionAction(questionId: string, input: QuestionFo
 
   const existing = await db.question.findUniqueOrThrow({
     where: { id: questionId },
-    select: { testId: true, testSectionId: true, part: true },
+    select: { testId: true, testSectionId: true, part: true, orderIndex: true },
   });
 
   // Same pool-routing as createQuestionAction — otherwise clearing the test
@@ -105,13 +115,22 @@ export async function updateQuestionAction(questionId: string, input: QuestionFo
     testSectionId = pool.testSectionId;
   }
 
-  await db.$transaction([
-    db.question.update({
+  // Only reserve a fresh position when the question actually moved test or
+  // part — its current orderIndex is presumably already correctly placed
+  // within its existing part's block otherwise, and reserving a new one
+  // unconditionally would needlessly shift unrelated questions on every
+  // edit (even ones that only changed, say, the explanation text).
+  const movedSection = testId !== existing.testId || data.part !== existing.part;
+
+  await db.$transaction(async (tx) => {
+    const orderIndex = movedSection ? await reserveQuestionOrderIndex(tx, testId, data.part) : existing.orderIndex;
+    await tx.question.update({
       where: { id: questionId },
       data: {
         testId,
         testSectionId,
         part: data.part,
+        orderIndex,
         prompt: data.prompt || "",
         imageUrl: data.imageUrl || null,
         audioUrl: data.audioUrl || null,
@@ -124,20 +143,22 @@ export async function updateQuestionAction(questionId: string, input: QuestionFo
         difficulty: data.difficulty,
         status: data.status,
       },
-    }),
-    db.questionOption.deleteMany({ where: { questionId } }),
-    ...data.options.map((o) =>
-      db.questionOption.create({
-        data: {
-          questionId,
-          label: o.label,
-          content: o.content,
-          isCorrect: o.label === data.correctLabel,
-          distractorExplanation: o.distractorExplanation || null,
-        },
-      })
-    ),
-  ]);
+    });
+    await tx.questionOption.deleteMany({ where: { questionId } });
+    await Promise.all(
+      data.options.map((o) =>
+        tx.questionOption.create({
+          data: {
+            questionId,
+            label: o.label,
+            content: o.content,
+            isCorrect: o.label === data.correctLabel,
+            distractorExplanation: o.distractorExplanation || null,
+          },
+        })
+      )
+    );
+  });
 
   // Sync the question's new home (auto-routed or explicitly picked) and, if
   // it moved away from a different pool, that old one too — otherwise the

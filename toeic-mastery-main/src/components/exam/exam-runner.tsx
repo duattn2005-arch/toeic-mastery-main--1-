@@ -20,12 +20,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ExamTimer } from "@/components/exam/exam-timer";
 import { QuestionNavigator } from "@/components/exam/question-navigator";
-import { ExamQuestionPanel } from "@/components/exam/exam-question-panel";
+import { ExamQuestionPanel, LISTENING_PARTS_WITH_PASSAGE } from "@/components/exam/exam-question-panel";
+import { PassageStimulus } from "@/components/exam/passage-stimulus";
 import { useExamStore } from "@/store/exam-store";
 import { useExamSync, loadLocalSnapshot } from "@/hooks/use-exam-sync";
 import { useExamMascotState } from "@/hooks/use-exam-mascot";
 import { useDictionaryHintTutorial } from "@/hooks/use-dictionary-hint-tutorial";
 import { StudyMascot } from "@/components/mascot/study-mascot";
+import { groupQuestionsByPassage } from "@/lib/exam/group-questions";
+import { cn } from "@/lib/utils";
 import type { ExamData } from "@/lib/data/exam";
 
 export function ExamRunner({ data }: { data: ExamData }) {
@@ -67,6 +70,23 @@ export function ExamRunner({ data }: { data: ExamData }) {
   const currentQuestion = questions[currentIndex];
   const answeredCount = Object.values(answers).filter((a) => a.selectedLabel).length;
   const { mascotState, notifyInteraction } = useExamMascotState(answeredCount, hydrated);
+
+  // Groups consecutive questions sharing one passageId (one shared audio/
+  // reading passage) so they can render as a single screen — see
+  // group-questions.ts's doc comment for why a plain linear scan is safe.
+  const groups = React.useMemo(() => groupQuestionsByPassage(questions), [questions]);
+  const activeGroup = React.useMemo(
+    () => groups.find((g) => currentIndex >= g.startIndex && currentIndex < g.startIndex + g.items.length),
+    [groups, currentIndex]
+  );
+
+  // "Câu trước/tiếp" and the navigator both just move the flat currentIndex;
+  // when that lands on a question still inside the group already on screen,
+  // scroll the right-hand list to it instead of re-rendering anything.
+  React.useEffect(() => {
+    if (!currentQuestion || !activeGroup || activeGroup.items.length <= 1) return;
+    document.getElementById(`exam-q-${currentQuestion.id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [currentIndex, currentQuestion, activeGroup]);
 
   // Runs once hydration loads the real deadline, not on every tick — tickTimer
   // recomputes remainingSec from the store's endTime each time, so this interval
@@ -171,25 +191,70 @@ export function ExamRunner({ data }: { data: ExamData }) {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_280px]">
         <div className="flex flex-col gap-4">
-          <ExamQuestionPanel
-            key={currentQuestion.id}
-            attemptId={data.attemptId}
-            question={currentQuestion}
-            questionNumber={currentIndex + 1}
-            passage={passage}
-            selectedLabel={currentAnswer?.selectedLabel ?? null}
-            isFlagged={currentAnswer?.isFlagged ?? false}
-            onSelectAnswer={(label) => {
-              notifyInteraction();
-              setAnswer(currentQuestion.id, label);
-            }}
-            onToggleFlag={() => {
-              notifyInteraction();
-              toggleFlag(currentQuestion.id);
-            }}
-            mode={data.mode}
-            allowReplay={data.allowReplay}
-          />
+          {activeGroup && activeGroup.items.length > 1 && passage ? (
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+              <div className="rounded-2xl border border-border bg-card p-5 shadow-soft lg:sticky lg:top-32 lg:w-[45%] lg:shrink-0">
+                <p className="mb-3 text-sm font-semibold text-primary">
+                  Nhóm câu {activeGroup.startIndex + 1}–{activeGroup.startIndex + activeGroup.items.length} ({activeGroup.items.length} câu hỏi)
+                </p>
+                <PassageStimulus
+                  key={activeGroup.passageId}
+                  passage={passage}
+                  mode={data.mode}
+                  allowReplay={data.allowReplay}
+                  showAudioTour={LISTENING_PARTS_WITH_PASSAGE.has(activeGroup.items[0].part)}
+                />
+              </div>
+              <div className="scrollbar-thin flex max-h-[70vh] flex-1 flex-col gap-4 overflow-y-auto pr-1 lg:max-h-[calc(100vh-9rem)]">
+                {activeGroup.items.map((q, i) => {
+                  const answer = answers[q.id];
+                  return (
+                    <div key={q.id} id={`exam-q-${q.id}`} className={cn("rounded-2xl", q.id === currentQuestion.id && "ring-2 ring-primary ring-offset-2")}>
+                      <ExamQuestionPanel
+                        attemptId={data.attemptId}
+                        question={q}
+                        questionNumber={activeGroup.startIndex + i + 1}
+                        passage={null}
+                        hideSharedPassage
+                        selectedLabel={answer?.selectedLabel ?? null}
+                        isFlagged={answer?.isFlagged ?? false}
+                        onSelectAnswer={(label) => {
+                          notifyInteraction();
+                          setAnswer(q.id, label);
+                        }}
+                        onToggleFlag={() => {
+                          notifyInteraction();
+                          toggleFlag(q.id);
+                        }}
+                        mode={data.mode}
+                        allowReplay={data.allowReplay}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <ExamQuestionPanel
+              key={currentQuestion.id}
+              attemptId={data.attemptId}
+              question={currentQuestion}
+              questionNumber={currentIndex + 1}
+              passage={passage}
+              selectedLabel={currentAnswer?.selectedLabel ?? null}
+              isFlagged={currentAnswer?.isFlagged ?? false}
+              onSelectAnswer={(label) => {
+                notifyInteraction();
+                setAnswer(currentQuestion.id, label);
+              }}
+              onToggleFlag={() => {
+                notifyInteraction();
+                toggleFlag(currentQuestion.id);
+              }}
+              mode={data.mode}
+              allowReplay={data.allowReplay}
+            />
+          )}
 
           <div className="flex items-center justify-between">
             <Button

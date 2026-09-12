@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const TEST_PART_VALUES = ["PART1", "PART2", "PART3", "PART4", "PART5", "PART6", "PART7"] as const;
 export const DIFFICULTY_VALUES = ["EASY", "MEDIUM", "HARD"] as const;
-const OPTION_LABEL_VALUES = ["A", "B", "C", "D"] as const;
+export const OPTION_LABEL_VALUES = ["A", "B", "C", "D"] as const;
 
 export const testFormSchema = z.object({
   title: z.string().trim().min(3, "Tối thiểu 3 ký tự"),
@@ -73,6 +73,64 @@ export const importQuestionSchema = z.object({
 export type ImportQuestionInput = z.infer<typeof importQuestionSchema>;
 
 export const importPayloadSchema = z.union([importQuestionSchema, z.array(importQuestionSchema)]);
+
+// Question-group authoring (one shared Passage + N Questions created
+// together) — see prisma/schema.prisma's Passage model and
+// src/lib/actions/admin-passages.ts's createQuestionGroupAction.
+export const PASSAGE_PART_VALUES = ["PART3", "PART4", "PART6", "PART7"] as const;
+export const PASSAGE_FORMAT_VALUES = [
+  "CONVERSATION",
+  "TALK",
+  "EMAIL",
+  "ADVERTISEMENT",
+  "MEMO",
+  "NOTICE",
+  "ARTICLE",
+  "CHAT",
+  "INVOICE",
+  "SCHEDULE",
+  "FORM",
+  "LETTER",
+  "OTHER",
+] as const;
+export const PASSAGE_LAYOUT_VALUES = ["SINGLE", "DOUBLE", "TRIPLE"] as const;
+
+export const passageTextFormSchema = z.object({
+  label: z.string().trim().min(1, "Bắt buộc nhập nhãn (VD: E-mail 1)"),
+  content: z.string().trim().min(1, "Không được để trống"),
+});
+
+export const groupQuestionFormSchema = z
+  .object({
+    prompt: z.string().trim().min(1, "Bắt buộc nhập câu hỏi"),
+    correctLabel: z.enum(OPTION_LABEL_VALUES),
+    explanationVi: z.string().trim().min(1, "Bắt buộc nhập giải thích"),
+    grammarTopicSlug: z.string().trim().optional(),
+    vocabularyFocus: z.string().trim().optional(),
+    evidenceText: z.string().trim().optional(),
+    options: z.array(questionOptionFormSchema).min(2).max(4),
+  })
+  .refine((data) => data.options.some((o) => o.label === data.correctLabel), {
+    message: "Đáp án đúng phải khớp với một trong các lựa chọn",
+    path: ["correctLabel"],
+  });
+export type GroupQuestionFormInput = z.infer<typeof groupQuestionFormSchema>;
+
+export const questionGroupFormSchema = z.object({
+  testId: z.string().trim().optional(),
+  part: z.enum(PASSAGE_PART_VALUES),
+  format: z.enum(PASSAGE_FORMAT_VALUES),
+  layout: z.enum(PASSAGE_LAYOUT_VALUES),
+  title: z.string().trim().optional(),
+  audioUrl: z.string().trim().url().optional().or(z.literal("")),
+  imageUrl: z.string().trim().url().optional().or(z.literal("")),
+  transcript: z.string().trim().optional(),
+  texts: z.array(passageTextFormSchema).max(3),
+  difficulty: z.enum(DIFFICULTY_VALUES),
+  status: z.enum(QUESTION_STATUS_VALUES),
+  questions: z.array(groupQuestionFormSchema).min(2, "Nhóm câu hỏi cần tối thiểu 2 câu").max(6),
+});
+export type QuestionGroupFormInput = z.infer<typeof questionGroupFormSchema>;
 
 export const vocabularyWordFormSchema = z.object({
   topicId: z.string().trim().min(1, "Chọn chủ đề"),

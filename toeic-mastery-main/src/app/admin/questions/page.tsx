@@ -44,8 +44,13 @@ export default async function AdminQuestionsPage({
           <h1 className="text-2xl font-semibold tracking-tight">Quản lý câu hỏi</h1>
           <p className="mt-1 text-sm text-muted-foreground">{questions.length} câu hỏi gần đây</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <ImportQuestionsDialog testOptions={tests} />
+          <Button asChild variant="outline">
+            <Link href="/admin/questions/groups/new">
+              <Plus className="size-4" /> Nhóm câu hỏi
+            </Link>
+          </Button>
           <Button asChild>
             <Link href="/admin/questions/new">
               <Plus className="size-4" /> Thêm câu hỏi

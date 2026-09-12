@@ -61,6 +61,11 @@ export function UpgradeNudgeModal() {
   React.useEffect(() => {
     if (sessionAlreadyShown()) return;
 
+    // Never interrupt an active, timed exam attempt with an upsell dialog —
+    // same reasoning and same mount-time-snapshot caveat as
+    // WelcomeOfferModal's identical check.
+    if (pathname.startsWith("/exam/")) return;
+
     function reveal() {
       markSessionShown();
       setOpen(true);
