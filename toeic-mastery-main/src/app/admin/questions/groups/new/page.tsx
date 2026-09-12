@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
-import { QuestionGroupForm } from "@/components/admin/question-group-form";
+import { QuestionGroupWorkspace } from "@/components/admin/question-group-workspace";
 
 export const metadata: Metadata = { title: "Tạo nhóm câu hỏi" };
 
@@ -15,7 +15,7 @@ export default async function NewQuestionGroupPage() {
           Dành cho Part 3/4/6/7 — nhiều câu hỏi dùng chung 1 audio hoặc bài đọc. Nhập đề chung ở cột trái, thêm các câu hỏi ở cột phải, lưu một lần.
         </p>
       </div>
-      <QuestionGroupForm testOptions={tests} />
+      <QuestionGroupWorkspace testOptions={tests} />
     </div>
   );
 }

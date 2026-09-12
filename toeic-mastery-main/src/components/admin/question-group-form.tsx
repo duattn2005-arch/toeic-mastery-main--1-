@@ -27,6 +27,7 @@ import {
 import { createQuestionGroupAction } from "@/lib/actions/admin-passages";
 import { parseGroupPaste } from "@/lib/services/azota-question-parser";
 import { PART_META } from "@/lib/constants/toeic";
+import { cn } from "@/lib/utils";
 
 const NO_EXPLANATION_PLACEHOLDER = "(Chưa có giải thích — vui lòng bổ sung)";
 
@@ -91,7 +92,40 @@ const BLANK_QUESTION: QuestionGroupFormInput["questions"][number] = {
   ],
 };
 
-export function QuestionGroupForm({ testOptions }: { testOptions: { id: string; title: string }[] }) {
+/**
+ * One group's authoring form — QuestionGroupWorkspace mounts one instance per
+ * tab (all simultaneously, toggling `hidden` to switch between them) so each
+ * tab keeps its own react-hook-form state instead of having to serialize and
+ * restore it on every switch.
+ */
+export function QuestionGroupForm({
+  testOptions,
+  defaultTestId = "",
+  defaultPart = "PART3",
+  hidden = false,
+  saved = false,
+  onSaved,
+  tabsBar,
+}: {
+  testOptions: { id: string; title: string }[];
+  defaultTestId?: string;
+  defaultPart?: QuestionGroupFormInput["part"];
+  /** Kept mounted but visually hidden — see the class comment above. */
+  hidden?: boolean;
+  /** Locks the Save button once this group has already been created, so
+   * switching back to a saved tab (its form stays mounted/editable) can't
+   * accidentally submit the same group a second time. */
+  saved?: boolean;
+  /** Fires after a successful save so the workspace can mark this tab done
+   * and open a fresh one, instead of navigating away from the page. */
+  onSaved?: (passageId?: string) => void;
+  /** QuestionGroupWorkspace's group-tab strip, rendered just below the "Dán
+   * nhanh" bar — passed in rather than wrapping this component so it can
+   * sit inside the same visual block without lifting the paste dialog
+   * (which needs this form's own textsArray/questionsArray/setValue) up
+   * into the workspace. */
+  tabsBar?: React.ReactNode;
+}) {
   const {
     register,
     handleSubmit,
@@ -102,8 +136,8 @@ export function QuestionGroupForm({ testOptions }: { testOptions: { id: string; 
   } = useForm<QuestionGroupFormInput>({
     resolver: zodResolver(questionGroupFormSchema),
     defaultValues: {
-      testId: "",
-      part: "PART3",
+      testId: defaultTestId,
+      part: defaultPart,
       format: "CONVERSATION",
       layout: "SINGLE",
       title: "",
@@ -162,11 +196,16 @@ export function QuestionGroupForm({ testOptions }: { testOptions: { id: string; 
 
   async function onSubmit(values: QuestionGroupFormInput) {
     const result = await createQuestionGroupAction(values);
-    if (result?.error) toast.error(result.error);
+    if (result?.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Đã lưu nhóm câu hỏi.");
+    onSaved?.(result?.passageId);
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6" noValidate>
+    <form onSubmit={handleSubmit(onSubmit)} className={cn(hidden ? "hidden" : "flex", "flex-col gap-6")} noValidate>
       <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
         <div className="flex flex-col gap-0.5">
           <Button type="button" onClick={() => setPasteOpen(true)} className="w-fit shadow-sm">
@@ -175,6 +214,8 @@ export function QuestionGroupForm({ testOptions }: { testOptions: { id: string; 
           <p className="text-xs text-muted-foreground">Dán cả đoạn hội thoại/bài đọc + các câu hỏi cùng lúc, thay vì nhập tay từng câu.</p>
         </div>
       </div>
+
+      {tabsBar}
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         {/* Left column: the shared stimulus (audio/passage) all questions below reference. */}
@@ -366,9 +407,9 @@ export function QuestionGroupForm({ testOptions }: { testOptions: { id: string; 
             />
           ))}
 
-          <Button type="submit" disabled={isSubmitting} className="self-start">
+          <Button type="submit" disabled={isSubmitting || saved} className="self-start">
             {isSubmitting && <Loader2 className="size-4 animate-spin" />}
-            Tạo nhóm câu hỏi
+            {saved ? "Đã lưu" : "Lưu"}
           </Button>
         </div>
       </div>

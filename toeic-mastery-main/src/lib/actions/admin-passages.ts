@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { questionGroupFormSchema, type QuestionGroupFormInput } from "@/lib/validations/admin";
@@ -46,7 +45,7 @@ export async function createQuestionGroupAction(input: QuestionGroupFormInput): 
     testSectionId = pool.testSectionId;
   }
 
-  await db.$transaction(
+  const passageId = await db.$transaction(
     async (tx) => {
       // Reserves a block of `questions.length` consecutive positions inside
       // this part's own existing range (shifting later questions aside)
@@ -109,6 +108,12 @@ export async function createQuestionGroupAction(input: QuestionGroupFormInput): 
 
   await syncIfPracticePool(testId, data.part);
 
+  // Deliberately no redirect: an admin authoring Part 3/4/6/7 content adds
+  // one group after another for the same test/part in one sitting (see
+  // QuestionGroupWorkspace's tabs), so bouncing to /admin/questions after
+  // every single save would mean re-navigating back and re-picking the
+  // test each time. The caller stays on this same form and starts the next
+  // group instead.
   revalidatePath("/admin/questions");
-  redirect(`/admin/questions?part=${data.part}`);
+  return { passageId };
 }
