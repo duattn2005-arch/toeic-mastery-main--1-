@@ -23,11 +23,20 @@ jobs:
           script: |
             set -e
 
-            # Locate the app directory by its package.json "name" rather than
-            # a hardcoded path — this server's actual layout wasn't something
-            # I could inspect ahead of time (no SSH access while writing this
-            # workflow), so the script finds it instead of assuming it.
-            APP_DIR=$(grep -rl '"name": "toeic-mastery"' --include=package.json / --exclude-dir=node_modules 2>/dev/null | head -1 | xargs -r dirname)
+            # Locate the app directory. Prefer asking pm2 for the already-running
+            # app's cwd — this server turned out to have stale package.json
+            # copies from an unrelated repo checkout elsewhere on disk (under
+            # /root), so a blind filesystem-wide grep can pick the wrong one.
+            # Fall back to searching /var/www (where this app actually lives)
+            # and only then the whole filesystem, for a fresh server with
+            # nothing running yet.
+            APP_DIR=$(pm2 jlist 2>/dev/null | grep -o '"pm_cwd":"[^"]*"' | head -1 | sed -E 's/"pm_cwd":"(.*)"/\1/')
+            if [ -z "$APP_DIR" ]; then
+              APP_DIR=$(grep -rl '"name": "toeic-mastery"' --include=package.json /var/www --exclude-dir=node_modules 2>/dev/null | head -1 | xargs -r dirname)
+            fi
+            if [ -z "$APP_DIR" ]; then
+              APP_DIR=$(grep -rl '"name": "toeic-mastery"' --include=package.json / --exclude-dir=node_modules 2>/dev/null | head -1 | xargs -r dirname)
+            fi
             if [ -z "$APP_DIR" ]; then
               echo "::error::Could not locate the toeic-mastery app directory on this server."
               exit 1
