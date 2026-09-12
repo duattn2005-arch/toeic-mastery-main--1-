@@ -96,3 +96,30 @@ export function parseAzotaQuestions(rawText: string): AzotaParseResult {
 
   return { questions, skippedCount };
 }
+
+export interface GroupPasteResult extends AzotaParseResult {
+  /** Everything before the first "Câu N."/"Question N." line — the shared
+   * stimulus (Part 6/7 reading passage, or Part 3/4 conversation/talk
+   * script) that a pasted Part 3/4/6/7 set always leads with. Not split
+   * into multiple passages (double/triple Part 7 sets) — admin divides
+   * that manually with "+ Thêm đoạn văn" if needed. */
+  passageText: string;
+}
+
+/**
+ * Same convention as parseAzotaQuestions, but for a whole shared-stimulus
+ * group pasted at once: the shared passage/transcript first, then the
+ * question blocks. Used by QuestionGroupForm's own "Dán nhanh" — the
+ * regular question-by-question paste (QuestionCardListEditor,
+ * AzotaQuickPasteImporter) has no stimulus to extract, so it calls
+ * parseAzotaQuestions directly on the whole pasted text instead.
+ */
+export function parseGroupPaste(rawText: string): GroupPasteResult {
+  const lines = rawText.split("\n");
+  const firstQuestionIndex = lines.findIndex((l) => QUESTION_START.test(l.trim()));
+  if (firstQuestionIndex === -1) return { passageText: rawText.trim(), questions: [], skippedCount: 0 };
+
+  const passageText = lines.slice(0, firstQuestionIndex).join("\n").trim();
+  const { questions, skippedCount } = parseAzotaQuestions(lines.slice(firstQuestionIndex).join("\n"));
+  return { passageText, questions, skippedCount };
+}
