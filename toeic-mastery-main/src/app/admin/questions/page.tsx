@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ImportQuestionsDialog } from "@/components/admin/import-questions-dialog";
 import { PublishButton } from "@/components/admin/publish-button";
+import { DeleteButton } from "@/components/admin/delete-button";
 import { AdminQuestionsFilterBar } from "@/components/admin/admin-questions-filter-bar";
 import { PART_META } from "@/lib/constants/toeic";
 import { TEST_PART_VALUES } from "@/lib/validations/admin";
-import { publishQuestionAction } from "@/lib/actions/admin-questions";
+import { publishQuestionAction, deleteQuestionAction } from "@/lib/actions/admin-questions";
+import { clusterQuestionsByPassage } from "@/lib/services/question-grouping";
 import type { ContentStatus, TestPart } from "@/generated/prisma/enums";
 
 export const metadata: Metadata = { title: "Quản lý câu hỏi" };
@@ -45,17 +47,7 @@ export default async function AdminQuestionsPage({
     db.test.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, title: true }, take: 100 }),
   ]);
 
-  // Clusters consecutive rows sharing the same passage into one group block
-  // — a Part 3/4/6/7 group's questions are always contiguous by orderIndex
-  // (or creation order), so a single pass is enough; groups never need
-  // merging back together across a gap.
-  type Row = (typeof questions)[number];
-  const blocks: { passage: Row["passage"]; rows: Row[] }[] = [];
-  for (const q of questions) {
-    const last = blocks[blocks.length - 1];
-    if (q.passage && last?.passage?.id === q.passage.id) last.rows.push(q);
-    else blocks.push({ passage: q.passage, rows: [q] });
-  }
+  const blocks = clusterQuestionsByPassage(questions);
 
   return (
     <div className="flex flex-col gap-6">
@@ -89,6 +81,7 @@ export default async function AdminQuestionsPage({
               <th className="px-4 py-3 font-medium">Part</th>
               <th className="px-4 py-3 font-medium">Đề thi</th>
               <th className="px-4 py-3 font-medium">Trạng thái</th>
+              <th className="px-4 py-3 font-medium" />
             </tr>
           </thead>
           <tbody>
@@ -96,7 +89,7 @@ export default async function AdminQuestionsPage({
               block.passage ? (
                 <Fragment key={block.passage.id}>
                   <tr className="border-b border-border bg-muted/40">
-                    <td colSpan={4} className="px-4 py-2">
+                    <td colSpan={5} className="px-4 py-2">
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                           Nhóm · {PART_META[block.rows[0].part].shortLabel} · {block.rows.length} câu
@@ -109,50 +102,49 @@ export default async function AdminQuestionsPage({
                     </td>
                   </tr>
                   {block.rows.map((q) => (
-                    <tr key={q.id} className="border-b border-border bg-muted/10 last:border-0 hover:bg-accent/30">
-                      <td className="max-w-md truncate px-4 py-2.5 pl-8">
-                        <Link href={`/admin/questions/${q.id}`} className="hover:text-primary">
-                          {q.prompt || "(câu hỏi nghe, không có văn bản)"}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-2.5 text-muted-foreground">{PART_META[q.part].shortLabel}</td>
-                      <td className="px-4 py-2.5 text-muted-foreground">{q.test?.title ?? "—"}</td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <Badge variant={q.status === "PUBLISHED" ? "default" : "secondary"}>{q.status}</Badge>
-                          {q.status !== "PUBLISHED" && (
-                            <PublishButton action={publishQuestionAction.bind(null, q.id)} successMessage="Đã xuất bản câu hỏi" />
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                    <QuestionRow key={q.id} question={q} indent />
                   ))}
                 </Fragment>
               ) : (
-                block.rows.map((q) => (
-                  <tr key={q.id} className="border-b border-border last:border-0 hover:bg-accent/30">
-                    <td className="max-w-md truncate px-4 py-3">
-                      <Link href={`/admin/questions/${q.id}`} className="hover:text-primary">
-                        {q.prompt || "(câu hỏi nghe, không có văn bản)"}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{PART_META[q.part].shortLabel}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{q.test?.title ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Badge variant={q.status === "PUBLISHED" ? "default" : "secondary"}>{q.status}</Badge>
-                        {q.status !== "PUBLISHED" && (
-                          <PublishButton action={publishQuestionAction.bind(null, q.id)} successMessage="Đã xuất bản câu hỏi" />
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                block.rows.map((q) => <QuestionRow key={q.id} question={q} />)
               )
             )}
           </tbody>
         </table>
       </div>
     </div>
+  );
+}
+
+function QuestionRow({
+  question: q,
+  indent = false,
+}: {
+  question: { id: string; prompt: string; part: TestPart; status: ContentStatus; test: { title: string } | null };
+  indent?: boolean;
+}) {
+  return (
+    <tr className={`border-b border-border last:border-0 hover:bg-accent/30 ${indent ? "bg-muted/10" : ""}`}>
+      <td className={`max-w-md truncate px-4 ${indent ? "py-2.5 pl-8" : "py-3"}`}>
+        <Link href={`/admin/questions/${q.id}`} className="hover:text-primary">
+          {q.prompt || "(câu hỏi nghe, không có văn bản)"}
+        </Link>
+      </td>
+      <td className={`text-muted-foreground ${indent ? "px-4 py-2.5" : "px-4 py-3"}`}>{PART_META[q.part].shortLabel}</td>
+      <td className={`text-muted-foreground ${indent ? "px-4 py-2.5" : "px-4 py-3"}`}>{q.test?.title ?? "—"}</td>
+      <td className={indent ? "px-4 py-2.5" : "px-4 py-3"}>
+        <div className="flex items-center gap-2">
+          <Badge variant={q.status === "PUBLISHED" ? "default" : "secondary"}>{q.status}</Badge>
+          {q.status !== "PUBLISHED" && <PublishButton action={publishQuestionAction.bind(null, q.id)} successMessage="Đã xuất bản câu hỏi" />}
+        </div>
+      </td>
+      <td className={indent ? "px-4 py-2.5" : "px-4 py-3"}>
+        <DeleteButton
+          label="Xóa"
+          description="Câu hỏi này (và các lựa chọn, dấu trang, báo lỗi liên quan) sẽ bị xóa vĩnh viễn. Không thể hoàn tác."
+          action={deleteQuestionAction.bind(null, q.id)}
+        />
+      </td>
+    </tr>
   );
 }
