@@ -13,7 +13,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
-    "db:promote-admin": "tsx prisma/promote-admin.ts"
+    "db:promote-admin": "tsx prisma/promote-admin.ts",
+    "db:fix-question-order": "tsx prisma/fix-question-order.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
