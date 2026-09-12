@@ -24,7 +24,7 @@ import {
   OPTION_LABEL_VALUES,
   type QuestionGroupFormInput,
 } from "@/lib/validations/admin";
-import { createQuestionGroupAction } from "@/lib/actions/admin-passages";
+import { createQuestionGroupAction, updateQuestionGroupAction } from "@/lib/actions/admin-passages";
 import { parseGroupPaste } from "@/lib/services/azota-question-parser";
 import { PART_META } from "@/lib/constants/toeic";
 import { cn } from "@/lib/utils";
@@ -103,7 +103,8 @@ export function QuestionGroupForm({
   defaultTestId = "",
   defaultPart = "PART3",
   hidden = false,
-  saved = false,
+  initialValues,
+  initialPassageId,
   onSaved,
   tabsBar,
 }: {
@@ -112,12 +113,15 @@ export function QuestionGroupForm({
   defaultPart?: QuestionGroupFormInput["part"];
   /** Kept mounted but visually hidden — see the class comment above. */
   hidden?: boolean;
-  /** Locks the Save button once this group has already been created, so
-   * switching back to a saved tab (its form stays mounted/editable) can't
-   * accidentally submit the same group a second time. */
-  saved?: boolean;
-  /** Fires after a successful save so the workspace can mark this tab done
-   * and open a fresh one, instead of navigating away from the page. */
+  /** Full prefill for editing an existing group (the standalone
+   * /admin/questions/groups/[passageId]/edit page) — overrides
+   * defaultTestId/defaultPart/the blank-question defaults entirely. */
+  initialValues?: QuestionGroupFormInput;
+  /** Pairs with initialValues: the group being edited, so the first Save
+   * here updates it instead of creating a new one. */
+  initialPassageId?: string;
+  /** Fires after every successful save (create AND update) so the
+   * workspace can mark this tab done and hand off to the next one. */
   onSaved?: (passageId?: string) => void;
   /** QuestionGroupWorkspace's group-tab strip, rendered just below the "Dán
    * nhanh" bar — passed in rather than wrapping this component so it can
@@ -135,7 +139,7 @@ export function QuestionGroupForm({
     formState: { errors, isSubmitting },
   } = useForm<QuestionGroupFormInput>({
     resolver: zodResolver(questionGroupFormSchema),
-    defaultValues: {
+    defaultValues: initialValues ?? {
       testId: defaultTestId,
       part: defaultPart,
       format: "CONVERSATION",
@@ -150,6 +154,14 @@ export function QuestionGroupForm({
       questions: [{ ...BLANK_QUESTION }, { ...BLANK_QUESTION }],
     },
   });
+
+  // Tracks whether this form has been saved yet — once it has (either it
+  // started as an edit of an existing group, or a create just succeeded),
+  // every further Save updates that same group instead of creating a
+  // second one. This is what actually fixes "changing anything after
+  // saving has no way to save again": the old code just disabled the
+  // button once saved and never had an update path at all.
+  const [passageId, setPassageId] = React.useState(initialPassageId);
 
   const part = watch("part");
   const isReadingPart = part === "PART6" || part === "PART7";
@@ -195,12 +207,13 @@ export function QuestionGroupForm({
   }
 
   async function onSubmit(values: QuestionGroupFormInput) {
-    const result = await createQuestionGroupAction(values);
+    const result = passageId ? await updateQuestionGroupAction(passageId, values) : await createQuestionGroupAction(values);
     if (result?.error) {
       toast.error(result.error);
       return;
     }
-    toast.success("Đã lưu nhóm câu hỏi.");
+    toast.success(passageId ? "Đã cập nhật nhóm câu hỏi." : "Đã lưu nhóm câu hỏi.");
+    if (result?.passageId) setPassageId(result.passageId);
     onSaved?.(result?.passageId);
   }
 
@@ -224,8 +237,12 @@ export function QuestionGroupForm({
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Part">
-              <Select value={part} onValueChange={(v) => setValue("part", v as QuestionGroupFormInput["part"])}>
-                <SelectTrigger>
+              <Select
+                value={part}
+                onValueChange={(v) => setValue("part", v as QuestionGroupFormInput["part"])}
+                disabled={!!passageId}
+              >
+                <SelectTrigger title={passageId ? "Không thể đổi Part sau khi đã lưu — tạo nhóm mới nếu cần đổi" : undefined}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -333,8 +350,8 @@ export function QuestionGroupForm({
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Thuộc đề thi (không bắt buộc)">
-              <Select value={watch("testId") || "none"} onValueChange={(v) => setValue("testId", v === "none" ? "" : v)}>
-                <SelectTrigger>
+              <Select value={watch("testId") || "none"} onValueChange={(v) => setValue("testId", v === "none" ? "" : v)} disabled={!!passageId}>
+                <SelectTrigger title={passageId ? "Không thể đổi đề thi sau khi đã lưu — tạo nhóm mới nếu cần đổi" : undefined}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -407,9 +424,9 @@ export function QuestionGroupForm({
             />
           ))}
 
-          <Button type="submit" disabled={isSubmitting || saved} className="self-start">
+          <Button type="submit" disabled={isSubmitting} className="self-start">
             {isSubmitting && <Loader2 className="size-4 animate-spin" />}
-            {saved ? "Đã lưu" : "Lưu"}
+            {passageId ? "Cập nhật" : "Lưu"}
           </Button>
         </div>
       </div>

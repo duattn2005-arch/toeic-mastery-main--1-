@@ -117,3 +117,126 @@ export async function createQuestionGroupAction(input: QuestionGroupFormInput): 
   revalidatePath("/admin/questions");
   return { passageId };
 }
+
+/**
+ * Updates an existing group's shared stimulus and reconciles its questions
+ * — used both by QuestionGroupForm re-saving a tab it already created, and
+ * by the standalone /admin/questions/groups/[passageId]/edit page. Doesn't
+ * allow changing testId/part (QuestionGroupForm disables those selects once
+ * a group is saved): doing so would mean re-running the order-index
+ * reservation dance and moving every question in the group across a
+ * different part's range, which is enough extra complexity that "create a
+ * new group instead" is the simpler, safer answer for that case.
+ *
+ * Questions are matched to existing rows by POSITION (index in the array),
+ * not by id — the form has no per-question id to key on — and updated in
+ * place rather than deleted+recreated, since Question rows are the actual
+ * FK target for AttemptAnswer/Bookmark/QuestionReport (all onDelete:
+ * Cascade): deleting one that a real attempt already answered would silently
+ * wipe that history. Only positions genuinely beyond the old or new length
+ * are created or deleted.
+ */
+export async function updateQuestionGroupAction(passageId: string, input: QuestionGroupFormInput): Promise<GroupActionResult> {
+  await requireAdmin();
+  const parsed = questionGroupFormSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
+  const data = parsed.data;
+
+  const passage = await db.passage.findUnique({ where: { id: passageId }, select: { testId: true, part: true } });
+  if (!passage) return { error: "Không tìm thấy nhóm câu hỏi này" };
+
+  const existingQuestions = await db.question.findMany({
+    where: { passageId },
+    orderBy: { orderIndex: "asc" },
+    select: { id: true, orderIndex: true, testSectionId: true },
+  });
+
+  await db.$transaction(
+    async (tx) => {
+      await tx.passage.update({
+        where: { id: passageId },
+        data: {
+          format: data.format,
+          layout: data.layout,
+          title: data.title || null,
+          texts: data.texts,
+          audioUrl: data.audioUrl || null,
+          imageUrl: data.imageUrl || null,
+          transcript: data.transcript || null,
+        },
+      });
+
+      const shared = Math.min(existingQuestions.length, data.questions.length);
+      await Promise.all(
+        data.questions.slice(0, shared).map((q, i) =>
+          tx.question.update({
+            where: { id: existingQuestions[i].id },
+            data: {
+              prompt: q.prompt,
+              correctLabel: q.correctLabel,
+              explanationVi: q.explanationVi,
+              grammarTopicSlug: q.grammarTopicSlug || null,
+              vocabularyFocus: splitList(q.vocabularyFocus),
+              evidenceText: q.evidenceText || null,
+              difficulty: data.difficulty,
+              status: data.status,
+              options: {
+                deleteMany: {},
+                create: q.options.map((o) => ({
+                  label: o.label,
+                  content: o.content,
+                  isCorrect: o.label === q.correctLabel,
+                  distractorExplanation: o.distractorExplanation || null,
+                })),
+              },
+            },
+          })
+        )
+      );
+
+      if (data.questions.length > existingQuestions.length) {
+        const last = existingQuestions[existingQuestions.length - 1];
+        const baseOrder = (last?.orderIndex ?? -1) + 1;
+        const testSectionId = last?.testSectionId ?? null;
+        const extra = data.questions.slice(existingQuestions.length);
+        await Promise.all(
+          extra.map((q, i) =>
+            tx.question.create({
+              data: {
+                testId: passage.testId,
+                testSectionId,
+                passageId,
+                part: passage.part,
+                orderIndex: baseOrder + i,
+                prompt: q.prompt,
+                correctLabel: q.correctLabel,
+                explanationVi: q.explanationVi,
+                grammarTopicSlug: q.grammarTopicSlug || null,
+                vocabularyFocus: splitList(q.vocabularyFocus),
+                evidenceText: q.evidenceText || null,
+                difficulty: data.difficulty,
+                status: data.status,
+                options: {
+                  create: q.options.map((o) => ({
+                    label: o.label,
+                    content: o.content,
+                    isCorrect: o.label === q.correctLabel,
+                    distractorExplanation: o.distractorExplanation || null,
+                  })),
+                },
+              },
+            })
+          )
+        );
+      } else if (existingQuestions.length > data.questions.length) {
+        const removedIds = existingQuestions.slice(data.questions.length).map((q) => q.id);
+        await tx.question.deleteMany({ where: { id: { in: removedIds } } });
+      }
+    },
+    { timeout: 10_000 }
+  );
+
+  await syncIfPracticePool(passage.testId, passage.part);
+  revalidatePath("/admin/questions");
+  return { passageId };
+}

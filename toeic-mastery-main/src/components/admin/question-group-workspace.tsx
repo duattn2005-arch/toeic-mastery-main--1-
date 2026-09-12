@@ -131,7 +131,6 @@ export function QuestionGroupWorkspace({ testOptions }: { testOptions: { id: str
           key={tab.id}
           testOptions={testOptions}
           hidden={tab.id !== activeId}
-          saved={tab.saved}
           defaultTestId={tab.defaultTestId}
           defaultPart={tab.defaultPart}
           onSaved={() => handleSaved(tab.id)}
