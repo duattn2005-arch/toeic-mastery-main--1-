@@ -203,6 +203,7 @@ function mapImportRow(row: ImportQuestionInput) {
     grammarTopicSlug: row.grammarTopicSlug ?? null,
     testId: (row.testId || null) as string | null,
     testSectionId: null as string | null,
+    orderIndex: 0,
     status: row.status ?? "DRAFT",
     options: row.options.map((content, i) => ({
       label: labels[i],
@@ -246,6 +247,32 @@ export async function importQuestionsAction(rawJson: string): Promise<ActionResu
     }
   }
 
+  // Reserve each (testId, part) group's own contiguous block of orderIndex
+  // values — same fix as createQuestionAction/createQuestionGroupAction.
+  // This importer used to leave orderIndex at its schema default (0) for
+  // every row, so a test built from more than one pasted batch had every
+  // row tie at 0 and came back in whatever order Postgres happened to
+  // return them (in practice, close to insertion order) instead of grouped
+  // by part — exactly the interleaved Part 4/5/6 ordering this was meant to
+  // fix. Reservations run sequentially per group (reserveQuestionOrderIndex
+  // reads-then-mutates a test's rows, so two groups sharing a testId can't
+  // safely run concurrently); the actual creates below stay parallel.
+  const groups = new Map<string, (typeof mapped)[number][]>();
+  for (const q of mapped) {
+    const key = `${q.testId ?? "none"}::${q.part}`;
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(q);
+    else groups.set(key, [q]);
+  }
+  for (const rows of groups.values()) {
+    const { testId, part } = rows[0];
+    if (!testId) continue; // unattached drafts have nothing to order against
+    const baseOrder = await db.$transaction((tx) => reserveQuestionOrderIndex(tx, testId, part, rows.length));
+    rows.forEach((q, i) => {
+      q.orderIndex = baseOrder + i;
+    });
+  }
+
   // Run outside a $transaction: each question is an independent create (no
   // cross-row atomicity requirement), and batching many of them inside one
   // Prisma transaction reliably blows the default 5s interactive-transaction
@@ -259,6 +286,7 @@ export async function importQuestionsAction(rawJson: string): Promise<ActionResu
           testId: q.testId,
           testSectionId: q.testSectionId,
           part: q.part,
+          orderIndex: q.orderIndex,
           prompt: q.prompt,
           correctLabel: q.correctLabel,
           explanationVi: q.explanationVi,
