@@ -3,6 +3,7 @@ import { Progress } from "@/components/ui/progress";
 import { StreakHeatmap } from "@/components/dashboard/streak-heatmap";
 import { MotivationalQuote } from "@/components/dashboard/motivational-quote";
 import { LevelAvatarCard } from "@/components/dashboard/level-avatar-card";
+import { SiteThemeOverlay } from "@/components/layout/site-theme-overlay";
 import { getSiteTheme } from "@/lib/constants/site-themes";
 import type { XpProgress } from "@/lib/services/xp";
 
@@ -66,6 +67,8 @@ export function DashboardHero({
           <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-black/10" aria-hidden />
         </>
       )}
+
+      {isPhotoTheme && <SiteThemeOverlay themeId={theme.id} />}
 
       {!isPhotoTheme && (
         <>

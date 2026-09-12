@@ -237,6 +237,74 @@
   animation: hero-blob-drift 8s ease-in-out infinite;
 }
 
+/* Ambient life for a photo/video Live theme hero (SiteThemeOverlay) —
+ * drifting clouds, a bird crossing the sky, moonlight sweeping the water —
+ * layered over an otherwise-static background so it reads as alive rather
+ * than a still image. `left`/`top` are animated (not `transform`) because
+ * these need to travel the actual width/height of whatever hero renders
+ * them, which varies by layout — a transform distance is relative to the
+ * element's own tiny box, not the container, so it can't express "all the
+ * way across" without knowing the container's real size up front. */
+@keyframes cloud-drift {
+  from {
+    left: -25%;
+  }
+  to {
+    left: 115%;
+  }
+}
+.cloud-drift {
+  position: absolute;
+  animation: cloud-drift 70s linear infinite;
+}
+
+@keyframes bird-flight {
+  0% {
+    left: -8%;
+    top: 22%;
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  50% {
+    top: 16%;
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    left: 108%;
+    top: 26%;
+    opacity: 0;
+  }
+}
+.bird-flight {
+  position: absolute;
+  animation: bird-flight 24s ease-in-out infinite;
+}
+
+@keyframes water-shimmer-sweep {
+  0% {
+    left: -40%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.5;
+  }
+  80% {
+    opacity: 0.5;
+  }
+  100% {
+    left: 130%;
+    opacity: 0;
+  }
+}
+.water-shimmer {
+  position: absolute;
+  animation: water-shimmer-sweep 10s ease-in-out infinite;
+}
+
 /* Pulsing glow for "lit up" accents (streak flame, level-up moments). */
 @keyframes glow-pulse {
   0%,
@@ -716,6 +784,9 @@
 @media (prefers-reduced-motion: reduce) {
   .hero-ambient,
   .hero-blob,
+  .cloud-drift,
+  .bird-flight,
+  .water-shimmer,
   .glow-pulse,
   .glow-pulse-blue,
   .glow-pulse-primary,
