@@ -6,7 +6,6 @@ import { X, BookOpen, Sparkles, BellRing, type LucideIcon } from "lucide-react";
 import { RabbitIllustration, FoxIllustration } from "@/components/mascot/mascot-illustration";
 import { pickMascotMessage } from "@/components/mascot/mascot-messages";
 import { useMascotMinimized } from "@/components/mascot/use-mascot-minimized";
-import { useMascotDrag } from "@/components/mascot/use-mascot-drag";
 import type { MascotState, MascotCharacter } from "@/components/mascot/types";
 import { cn } from "@/lib/utils";
 
@@ -34,8 +33,7 @@ function hashToIndex(id: string, mod: number) {
  * fade in), holds a few seconds, then fades itself back out — all via a CSS
  * animation keyed to restart on change, so it never needs a JS timer or
  * permanently blocks page content. Tapping the avatar opens AI Mentor
- * (/mentor); dragging it instead moves the whole widget anywhere on screen,
- * with the position remembered for next time.
+ * (/mentor); the small X that appears on hover minimizes it instead.
  */
 export function StudyMascot({
   state,
@@ -79,8 +77,6 @@ function MascotFace({
 }) {
   const id = React.useId();
   const router = useRouter();
-  const containerRef = React.useRef<HTMLDivElement>(null);
-  const { style: dragStyle, onPointerDown, onPointerMove, onPointerUp, wasDragged } = useMascotDrag(containerRef);
 
   const Illustration = character === "fox" ? FoxIllustration : RabbitIllustration;
   const Badge = BADGE_ICON[state];
@@ -88,11 +84,7 @@ function MascotFace({
   const cycleKey = `${state}:${message ?? ""}`;
 
   return (
-    <div
-      ref={containerRef}
-      style={dragStyle}
-      className="fixed bottom-20 right-4 z-40 flex flex-col items-end gap-2 lg:bottom-5 lg:right-5"
-    >
+    <div className="fixed bottom-20 right-4 z-40 flex flex-col items-end gap-2 lg:bottom-5 lg:right-5">
       <div key={cycleKey} className="mascot-bubble-auto max-w-[220px] rounded-2xl rounded-br-sm border border-border bg-card px-3.5 py-2.5 text-xs font-medium leading-relaxed text-foreground shadow-soft">
         {text}
       </div>
@@ -109,15 +101,9 @@ function MascotFace({
 
         <button
           type="button"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onClick={() => {
-            if (wasDragged()) return;
-            router.push("/mentor");
-          }}
-          aria-label="Hỏi AI Mentor — giữ và kéo để di chuyển"
-          className="mascot-float relative flex size-16 cursor-grab items-center justify-center rounded-full border border-border bg-card shadow-soft touch-none active:cursor-grabbing"
+          onClick={() => router.push("/mentor")}
+          aria-label="Hỏi AI Mentor"
+          className="mascot-float relative flex size-16 items-center justify-center rounded-full border border-border bg-card shadow-soft"
         >
           <div key={cycleKey} className={cn(state !== "idle" && "mascot-jump")}>
             <Illustration state={state} className="size-12" />
