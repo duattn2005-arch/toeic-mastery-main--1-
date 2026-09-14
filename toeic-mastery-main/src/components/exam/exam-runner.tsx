@@ -24,9 +24,7 @@ import { ExamQuestionPanel, LISTENING_PARTS_WITH_PASSAGE } from "@/components/ex
 import { PassageStimulus } from "@/components/exam/passage-stimulus";
 import { useExamStore } from "@/store/exam-store";
 import { useExamSync, loadLocalSnapshot } from "@/hooks/use-exam-sync";
-import { useExamMascotState } from "@/hooks/use-exam-mascot";
 import { useDictionaryHintTutorial } from "@/hooks/use-dictionary-hint-tutorial";
-import { StudyMascot } from "@/components/mascot/study-mascot";
 import { groupQuestionsByPassage } from "@/lib/exam/group-questions";
 import { cn } from "@/lib/utils";
 import type { ExamData } from "@/lib/data/exam";
@@ -69,7 +67,6 @@ export function ExamRunner({ data }: { data: ExamData }) {
 
   const currentQuestion = questions[currentIndex];
   const answeredCount = Object.values(answers).filter((a) => a.selectedLabel).length;
-  const { mascotState, notifyInteraction } = useExamMascotState(answeredCount, hydrated);
 
   // Groups consecutive questions sharing one passageId (one shared audio/
   // reading passage) so they can render as a single screen — see
@@ -218,14 +215,8 @@ export function ExamRunner({ data }: { data: ExamData }) {
                         hideSharedPassage
                         selectedLabel={answer?.selectedLabel ?? null}
                         isFlagged={answer?.isFlagged ?? false}
-                        onSelectAnswer={(label) => {
-                          notifyInteraction();
-                          setAnswer(q.id, label);
-                        }}
-                        onToggleFlag={() => {
-                          notifyInteraction();
-                          toggleFlag(q.id);
-                        }}
+                        onSelectAnswer={(label) => setAnswer(q.id, label)}
+                        onToggleFlag={() => toggleFlag(q.id)}
                         mode={data.mode}
                         allowReplay={data.allowReplay}
                       />
@@ -243,54 +234,27 @@ export function ExamRunner({ data }: { data: ExamData }) {
               passage={passage}
               selectedLabel={currentAnswer?.selectedLabel ?? null}
               isFlagged={currentAnswer?.isFlagged ?? false}
-              onSelectAnswer={(label) => {
-                notifyInteraction();
-                setAnswer(currentQuestion.id, label);
-              }}
-              onToggleFlag={() => {
-                notifyInteraction();
-                toggleFlag(currentQuestion.id);
-              }}
+              onSelectAnswer={(label) => setAnswer(currentQuestion.id, label)}
+              onToggleFlag={() => toggleFlag(currentQuestion.id)}
               mode={data.mode}
               allowReplay={data.allowReplay}
             />
           )}
 
-          {/* pb-36/lg:pb-24 matches the fixed mascot widget's own footprint
-           * (bottom offset + its size, see study-mascot.tsx) so these
-           * buttons — the last thing in this column — never end up
-           * underneath it on a short question (e.g. Part 1's single
-           * image + 4 choices) that doesn't otherwise fill the viewport. */}
-          <div className="flex items-center justify-between pb-36 lg:pb-24">
-            <Button
-              variant="outline"
-              onClick={() => {
-                notifyInteraction();
-                previous();
-              }}
-              disabled={currentIndex === 0}
-            >
+          <div className="flex items-center justify-between">
+            <Button variant="outline" onClick={previous} disabled={currentIndex === 0}>
               <ChevronLeft className="size-4" /> Câu trước
             </Button>
-            <Button
-              onClick={() => {
-                notifyInteraction();
-                next();
-              }}
-              disabled={currentIndex === questions.length - 1}
-            >
+            <Button onClick={next} disabled={currentIndex === questions.length - 1}>
               Câu tiếp <ChevronRight className="size-4" />
             </Button>
           </div>
         </div>
 
-        {/* pb-24 keeps the last row of question numbers clear of the fixed mascot widget when scrolled to the bottom */}
-        <aside className="hidden rounded-2xl border border-border bg-card p-4 pb-24 shadow-soft lg:block">
+        <aside className="hidden rounded-2xl border border-border bg-card p-4 shadow-soft lg:block">
           <QuestionNavigator questions={questions} answers={answers} currentIndex={currentIndex} onSelect={goTo} />
         </aside>
       </div>
-
-      {hydrated && <StudyMascot state={mascotState} character="fox" />}
     </div>
   );
 }
