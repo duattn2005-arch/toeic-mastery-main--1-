@@ -256,7 +256,12 @@ export function ExamRunner({ data }: { data: ExamData }) {
             />
           )}
 
-          <div className="flex items-center justify-between">
+          {/* pb-36/lg:pb-24 matches the fixed mascot widget's own footprint
+           * (bottom offset + its size, see study-mascot.tsx) so these
+           * buttons — the last thing in this column — never end up
+           * underneath it on a short question (e.g. Part 1's single
+           * image + 4 choices) that doesn't otherwise fill the viewport. */}
+          <div className="flex items-center justify-between pb-36 lg:pb-24">
             <Button
               variant="outline"
               onClick={() => {
