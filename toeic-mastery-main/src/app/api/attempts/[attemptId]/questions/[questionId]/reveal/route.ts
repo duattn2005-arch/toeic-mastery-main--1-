@@ -24,7 +24,7 @@ export async function GET(
   }
 
   const question = await db.question.findFirst({
-    where: { id: questionId, testId: attempt.testId },
+    where: { id: questionId, testId: attempt.testId, ...(attempt.parts.length > 0 ? { part: { in: attempt.parts } } : {}) },
     include: { options: true },
   });
   if (!question) return NextResponse.json({ error: "Not found" }, { status: 404 });

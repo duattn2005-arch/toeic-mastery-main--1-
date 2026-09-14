@@ -26,7 +26,15 @@ export async function POST(_request: Request, { params }: { params: Promise<{ at
   }
 
   const [questions, existingAnswers] = await Promise.all([
-    db.question.findMany({ where: { testId: attempt.testId }, select: { id: true, part: true, correctLabel: true } }),
+    // Scoped to attempt.parts (empty = the whole test) — same reasoning as
+    // getExamData: a Listening-only/Reading-only/hand-picked-Parts attempt
+    // never showed the rest of the test's questions, so scoring against all
+    // of them here would count every one of those as "skipped" and wrongly
+    // try to compute a full listening+reading score off a partial set.
+    db.question.findMany({
+      where: { testId: attempt.testId, ...(attempt.parts.length > 0 ? { part: { in: attempt.parts } } : {}) },
+      select: { id: true, part: true, correctLabel: true },
+    }),
     db.attemptAnswer.findMany({ where: { attemptId }, select: { questionId: true, selectedLabel: true, isFlagged: true } }),
   ]);
 

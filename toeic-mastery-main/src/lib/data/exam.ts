@@ -35,9 +35,22 @@ export async function getExamData(attemptId: string, userId: string): Promise<Ex
 
   if (!attempt || attempt.userId !== userId) notFound();
 
+  // Derived from the wall-clock elapsed since the attempt actually started,
+  // not the `remainingSec` column — that's only a periodic checkpoint (every
+  // 8s, plus on tab close; see use-exam-sync.ts), so reading it directly
+  // effectively paused the countdown for however long the tab stayed closed:
+  // reopen an attempt hours later and it would resume as if no time had
+  // passed. A real exam clock keeps running whether or not the tab is open.
+  const elapsedSec = Math.max(0, Math.floor((Date.now() - attempt.startedAt.getTime()) / 1000));
+  const remainingSec = attempt.status === "IN_PROGRESS" ? Math.max(0, attempt.allowedDurationSec - elapsedSec) : attempt.remainingSec;
+
   const [questions, existingAnswers] = await Promise.all([
     db.question.findMany({
-      where: { testId: attempt.testId },
+      // Empty `parts` (the default — every attempt before this field
+      // existed, and "Full Test") means the whole test; a non-empty array
+      // (Listening-only, Reading-only, or a hand-picked set — see
+      // test-attempt-start-panel.tsx) scopes it to just those Parts.
+      where: { testId: attempt.testId, ...(attempt.parts.length > 0 ? { part: { in: attempt.parts } } : {}) },
       orderBy: { orderIndex: "asc" },
       include: { options: { orderBy: { label: "asc" }, select: { label: true, content: true } }, passage: true },
     }),
@@ -70,7 +83,7 @@ export async function getExamData(attemptId: string, userId: string): Promise<Ex
     mode: attempt.mode,
     allowReplay: attempt.test.allowReplay,
     allowedDurationSec: attempt.allowedDurationSec,
-    remainingSec: attempt.remainingSec,
+    remainingSec,
     currentQuestionIndex: attempt.currentQuestionIndex,
     questions: questions.map((q) => ({
       id: q.id,

@@ -8,8 +8,8 @@ import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DIFFICULTY_LABEL_VI, PART_META } from "@/lib/constants/toeic";
-import { startAttemptAction } from "@/lib/actions/attempts";
 import { PracticeModeTour } from "@/components/practice/practice-mode-tour";
+import { TestAttemptStartPanel } from "@/components/practice/test-attempt-start-panel";
 
 export async function generateMetadata({ params }: { params: Promise<{ testId: string }> }): Promise<Metadata> {
   const { testId } = await params;
@@ -115,18 +115,11 @@ export default async function TestDetailPage({
               </Button>
             </div>
           ) : (
-            <div data-tour="practice-mode-buttons" className="flex flex-wrap gap-3">
-              <form action={startAttemptAction.bind(null, test.id, "EXAM")}>
-                <Button size="lg" type="submit">
-                  Bắt đầu thi (chế độ Thi thử)
-                </Button>
-              </form>
-              <form action={startAttemptAction.bind(null, test.id, "PRACTICE")}>
-                <Button size="lg" variant="outline" type="submit">
-                  Luyện tập (xem đáp án ngay)
-                </Button>
-              </form>
-            </div>
+            <TestAttemptStartPanel
+              testId={test.id}
+              sections={test.sections.map((s) => ({ part: s.part, questionCount: s.questionCount }))}
+              durationMinutes={test.durationMinutes}
+            />
           )}
         </div>
       </div>

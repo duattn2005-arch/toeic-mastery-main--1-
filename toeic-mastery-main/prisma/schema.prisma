@@ -531,6 +531,17 @@ model Attempt {
   testId               String        @map("test_id") @db.Uuid
   mode                 AttemptMode   @default(EXAM)
   status               AttemptStatus @default(IN_PROGRESS)
+  /**
+   * Which Parts this attempt actually covers — empty means "the whole test"
+   * (every existing attempt, and the default "Full Test" choice). Non-empty
+   * scopes getExamData's question query and is what "Thi Listening"/"Thi
+   * Reading"/"Thi theo Part" (see attempt-start-panel.tsx) actually are:
+   * the same test, just a Part subset, rather than a separate Test row per
+   * combination. Always stored sorted by TEST_PART_VALUES order so the
+   * "resume this exact in-progress attempt" lookup in startAttemptAction
+   * can compare it with a plain array `equals`.
+   */
+  parts                TestPart[]    @default([])
   currentQuestionIndex Int           @default(0) @map("current_question_index")
   allowedDurationSec   Int           @map("allowed_duration_sec")
   remainingSec         Int           @map("remaining_sec")

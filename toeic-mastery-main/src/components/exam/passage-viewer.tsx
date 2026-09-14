@@ -13,6 +13,7 @@ export function PassageViewer({
   texts,
   imageUrl,
   priority = false,
+  imageSizes = "(max-width: 768px) 100vw, 480px",
 }: {
   title?: string | null;
   texts: PassageText[];
@@ -23,6 +24,14 @@ export function PassageViewer({
    * attempt review list), since marking all of those priority would just
    * make them all compete for bandwidth instead of loading any one faster. */
   priority?: boolean;
+  /** Next/Image `sizes` hint — the box itself is always `w-full` of its
+   * parent (no hardcoded cap), but this tells the optimizer which source
+   * resolution to actually fetch, so it should roughly match how wide the
+   * caller's own layout renders it. Defaults to a normal single-column
+   * reading passage; a caller giving the image a wider column (e.g. the
+   * exam runner's side-by-side group layout) should pass a wider hint too,
+   * or the image displays upscaled/soft from a smaller-than-needed source. */
+  imageSizes?: string;
 }) {
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
@@ -30,7 +39,7 @@ export function PassageViewer({
 
       {imageUrl && (
         <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-muted">
-          <Image src={imageUrl} alt="" fill priority={priority} className="object-contain" sizes="(max-width: 768px) 100vw, 480px" />
+          <Image src={imageUrl} alt="" fill priority={priority} className="object-contain" sizes={imageSizes} />
         </div>
       )}
 

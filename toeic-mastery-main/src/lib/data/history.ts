@@ -13,7 +13,10 @@ export async function getAttemptResult(attemptId: string, userId: string) {
   if (!attempt || attempt.userId !== userId) notFound();
 
   const questions = await db.question.findMany({
-    where: { testId: attempt.testId },
+    // Scoped to attempt.parts (empty = the whole test) — a Listening-only/
+    // Reading-only/hand-picked-Parts attempt never showed the rest of the
+    // test, so reviewing it shouldn't list those as missed questions either.
+    where: { testId: attempt.testId, ...(attempt.parts.length > 0 ? { part: { in: attempt.parts } } : {}) },
     orderBy: { orderIndex: "asc" },
     include: {
       options: { orderBy: { label: "asc" } },

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, ListTodo, Loader2, Send } from "lucide-react";
+import { ChevronLeft, ChevronRight, LayoutGrid, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ export function ExamRunner({ data }: { data: ExamData }) {
   const router = useRouter();
   const store = useExamStore();
   const [submitting, setSubmitting] = React.useState(false);
+  const [navigatorOpen, setNavigatorOpen] = React.useState(false);
   const hydratedRef = React.useRef(false);
 
   useExamSync(data.attemptId);
@@ -167,18 +168,32 @@ export function ExamRunner({ data }: { data: ExamData }) {
         </div>
         <div className="flex items-center gap-2">
           <ExamTimer remainingSec={remainingSec} />
-          <Sheet>
+          <Sheet open={navigatorOpen} onOpenChange={setNavigatorOpen}>
             <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="lg:hidden" aria-label="Danh sách câu hỏi">
-                <ListTodo className="size-4" />
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 border-primary/40 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                aria-label="Xem danh sách câu hỏi"
+              >
+                <LayoutGrid className="size-4" />
+                {currentIndex + 1}/{questions.length}
               </Button>
             </SheetTrigger>
-            <SheetContent side="bottom" className="max-h-[80vh] overflow-y-auto rounded-t-2xl">
+            <SheetContent side="bottom" className="max-h-[80vh] overflow-y-auto rounded-t-2xl sm:mx-auto sm:max-w-xl">
               <SheetHeader>
                 <SheetTitle>Danh sách câu hỏi</SheetTitle>
               </SheetHeader>
               <div className="px-4 pb-4">
-                <QuestionNavigator questions={questions} answers={answers} currentIndex={currentIndex} onSelect={goTo} />
+                <QuestionNavigator
+                  questions={questions}
+                  answers={answers}
+                  currentIndex={currentIndex}
+                  onSelect={(index) => {
+                    goTo(index);
+                    setNavigatorOpen(false);
+                  }}
+                />
               </div>
             </SheetContent>
           </Sheet>
@@ -186,45 +201,45 @@ export function ExamRunner({ data }: { data: ExamData }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_280px]">
-        <div className="flex flex-col gap-4">
-          {activeGroup && activeGroup.items.length > 1 && passage ? (
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-              <div className="rounded-2xl border border-border bg-card p-5 shadow-soft lg:sticky lg:top-32 lg:w-[45%] lg:shrink-0">
-                <p className="mb-3 text-sm font-semibold text-primary">
-                  Nhóm câu {activeGroup.startIndex + 1}–{activeGroup.startIndex + activeGroup.items.length} ({activeGroup.items.length} câu hỏi)
-                </p>
-                <PassageStimulus
-                  key={activeGroup.passageId}
-                  passage={passage}
-                  mode={data.mode}
-                  allowReplay={data.allowReplay}
-                  showAudioTour={LISTENING_PARTS_WITH_PASSAGE.has(activeGroup.items[0].part)}
-                />
-              </div>
-              <div className="scrollbar-thin flex max-h-[70vh] flex-1 flex-col gap-4 overflow-y-auto pr-1 lg:max-h-[calc(100vh-9rem)]">
-                {activeGroup.items.map((q, i) => {
-                  const answer = answers[q.id];
-                  return (
-                    <div key={q.id} id={`exam-q-${q.id}`} className={cn("rounded-2xl", q.id === currentQuestion.id && "ring-2 ring-primary ring-offset-2")}>
-                      <ExamQuestionPanel
-                        attemptId={data.attemptId}
-                        question={q}
-                        questionNumber={activeGroup.startIndex + i + 1}
-                        passage={null}
-                        hideSharedPassage
-                        selectedLabel={answer?.selectedLabel ?? null}
-                        isFlagged={answer?.isFlagged ?? false}
-                        onSelectAnswer={(label) => setAnswer(q.id, label)}
-                        onToggleFlag={() => toggleFlag(q.id)}
-                        mode={data.mode}
-                        allowReplay={data.allowReplay}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
+      <div className="flex flex-col gap-4">
+        {activeGroup && activeGroup.items.length > 1 && passage ? (
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+            <div className="rounded-2xl border border-border bg-card p-5 shadow-soft lg:sticky lg:top-32 lg:w-[58%] lg:shrink-0">
+              <p className="mb-3 text-sm font-semibold text-primary">
+                Nhóm câu {activeGroup.startIndex + 1}–{activeGroup.startIndex + activeGroup.items.length} ({activeGroup.items.length} câu hỏi)
+              </p>
+              <PassageStimulus
+                key={activeGroup.passageId}
+                passage={passage}
+                mode={data.mode}
+                allowReplay={data.allowReplay}
+                showAudioTour={LISTENING_PARTS_WITH_PASSAGE.has(activeGroup.items[0].part)}
+                imageSizes="(max-width: 1024px) 100vw, 58vw"
+              />
             </div>
+            <div className="scrollbar-thin flex max-h-[70vh] flex-1 flex-col gap-4 overflow-y-auto pr-1 lg:max-h-[calc(100vh-9rem)]">
+              {activeGroup.items.map((q, i) => {
+                const answer = answers[q.id];
+                return (
+                  <div key={q.id} id={`exam-q-${q.id}`} className={cn("rounded-2xl", q.id === currentQuestion.id && "ring-2 ring-primary ring-offset-2")}>
+                    <ExamQuestionPanel
+                      attemptId={data.attemptId}
+                      question={q}
+                      questionNumber={activeGroup.startIndex + i + 1}
+                      passage={null}
+                      hideSharedPassage
+                      selectedLabel={answer?.selectedLabel ?? null}
+                      isFlagged={answer?.isFlagged ?? false}
+                      onSelectAnswer={(label) => setAnswer(q.id, label)}
+                      onToggleFlag={() => toggleFlag(q.id)}
+                      mode={data.mode}
+                      allowReplay={data.allowReplay}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
           ) : (
             <ExamQuestionPanel
               key={currentQuestion.id}
@@ -241,19 +256,14 @@ export function ExamRunner({ data }: { data: ExamData }) {
             />
           )}
 
-          <div className="flex items-center justify-between">
-            <Button variant="outline" onClick={previous} disabled={currentIndex === 0}>
-              <ChevronLeft className="size-4" /> Câu trước
-            </Button>
-            <Button onClick={next} disabled={currentIndex === questions.length - 1}>
-              Câu tiếp <ChevronRight className="size-4" />
-            </Button>
-          </div>
+        <div className="flex items-center justify-between">
+          <Button variant="outline" onClick={previous} disabled={currentIndex === 0}>
+            <ChevronLeft className="size-4" /> Câu trước
+          </Button>
+          <Button onClick={next} disabled={currentIndex === questions.length - 1}>
+            Câu tiếp <ChevronRight className="size-4" />
+          </Button>
         </div>
-
-        <aside className="hidden rounded-2xl border border-border bg-card p-4 shadow-soft lg:block">
-          <QuestionNavigator questions={questions} answers={answers} currentIndex={currentIndex} onSelect={goTo} />
-        </aside>
       </div>
     </div>
   );
