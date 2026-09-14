@@ -455,7 +455,14 @@ model Passage {
   title      String?
   texts      Json          @default("[]") // [{ label: string, content: string }]
   audioUrl   String?       @map("audio_url")
+  /** Up to 3 images (some Part 6/7 sets reference more than one figure —
+   * e.g. a form plus a schedule). `imageUrl` always mirrors `imageUrls[0]`
+   * on every write, kept only for the several read-only surfaces (bookmark
+   * previews, mistake/quick-study review cards) that only ever show one
+   * preview image and have no reason to handle the full array. The admin
+   * form and the real exam-taking passage view use `imageUrls`. */
   imageUrl   String?       @map("image_url")
+  imageUrls  String[]      @default([]) @map("image_urls")
   transcript String?
   orderIndex Int           @default(0) @map("order_index")
   createdAt  DateTime      @default(now()) @map("created_at")

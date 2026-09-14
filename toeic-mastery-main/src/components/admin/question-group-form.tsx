@@ -146,7 +146,7 @@ export function QuestionGroupForm({
       layout: "SINGLE",
       title: "",
       audioUrl: "",
-      imageUrl: "",
+      imageUrls: [],
       transcript: "",
       texts: [],
       difficulty: "MEDIUM",
@@ -168,6 +168,30 @@ export function QuestionGroupForm({
 
   const textsArray = useFieldArray({ control, name: "texts" });
   const questionsArray = useFieldArray({ control, name: "questions" });
+  // Up to 3 image slots. The zod schema validates imageUrls as real URLs
+  // only (no blanks allowed), but a slot the admin just added via "+ Thêm
+  // ảnh" starts empty until they paste/upload into it — so slot *positions*
+  // live in local state (can include a blank one being filled) while the
+  // RHF/zod `imageUrls` value it syncs into only ever holds the non-empty
+  // URLs, in slot order.
+  const [imageSlots, setImageSlots] = React.useState<string[]>(initialValues?.imageUrls ?? []);
+  function syncImageUrls(slots: string[]) {
+    setImageSlots(slots);
+    setValue(
+      "imageUrls",
+      slots.filter((u) => u !== ""),
+      { shouldValidate: true }
+    );
+  }
+  function addImageSlot() {
+    setImageSlots((prev) => [...prev, ""]);
+  }
+  function setImageSlot(i: number, url: string) {
+    syncImageUrls(imageSlots.map((u, idx) => (idx === i ? url : u)));
+  }
+  function removeImageSlot(i: number) {
+    syncImageUrls(imageSlots.filter((_, idx) => idx !== i));
+  }
 
   const [pasteOpen, setPasteOpen] = React.useState(false);
   const [pasteText, setPasteText] = React.useState("");
@@ -302,8 +326,24 @@ export function QuestionGroupForm({
             </>
           )}
 
-          <Field label={isReadingPart ? "Ảnh bài đọc (không bắt buộc, VD: quảng cáo dạng ảnh)" : "Ảnh minh họa (không bắt buộc)"}>
-            <ImageUploader value={watch("imageUrl") ?? ""} onChange={(url) => setValue("imageUrl", url, { shouldValidate: true })} />
+          <Field label={isReadingPart ? "Ảnh bài đọc (không bắt buộc, tối đa 3 ảnh)" : "Ảnh minh họa (không bắt buộc, tối đa 3 ảnh)"}>
+            <div className="flex flex-col gap-2">
+              {imageSlots.map((url, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <div className="flex-1">
+                    <ImageUploader value={url} onChange={(newUrl) => setImageSlot(i, newUrl)} />
+                  </div>
+                  <button type="button" onClick={() => removeImageSlot(i)} className="mt-2 text-xs text-muted-foreground hover:text-destructive">
+                    Xóa
+                  </button>
+                </div>
+              ))}
+              {imageSlots.length < 3 && (
+                <button type="button" onClick={addImageSlot} className="w-fit text-xs font-medium text-primary hover:underline">
+                  + Thêm ảnh
+                </button>
+              )}
+            </div>
           </Field>
 
           <div className="flex flex-col gap-2">

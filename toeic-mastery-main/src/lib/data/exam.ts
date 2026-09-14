@@ -21,7 +21,7 @@ export interface ExamData {
       title: string | null;
       texts: { label: string; content: string }[];
       audioUrl: string | null;
-      imageUrl: string | null;
+      imageUrls: string[];
       transcript: string | null;
     }
   >;
@@ -71,7 +71,7 @@ export async function getExamData(attemptId: string, userId: string): Promise<Ex
         title: q.passage.title,
         texts: q.passage.texts as unknown as { label: string; content: string }[],
         audioUrl: q.passage.audioUrl,
-        imageUrl: q.passage.imageUrl,
+        imageUrls: q.passage.imageUrls,
         transcript: q.passage.transcript,
       };
     }

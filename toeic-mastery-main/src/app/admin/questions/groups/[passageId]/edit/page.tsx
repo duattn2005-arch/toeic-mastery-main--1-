@@ -33,7 +33,7 @@ export default async function EditQuestionGroupPage({ params }: { params: Promis
     layout: passage.layout,
     title: passage.title ?? "",
     audioUrl: passage.audioUrl ?? "",
-    imageUrl: passage.imageUrl ?? "",
+    imageUrls: passage.imageUrls,
     transcript: passage.transcript ?? "",
     texts: (passage.texts as { label: string; content: string }[] | null) ?? [],
     difficulty: first.difficulty,

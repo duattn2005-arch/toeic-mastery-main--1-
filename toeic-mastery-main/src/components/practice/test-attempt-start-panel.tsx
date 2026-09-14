@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { BookOpen, FileText, Headphones, Loader2 } from "lucide-react";
+import { BookOpen, CheckCircle2, Clock, FileText, Headphones, Loader2 } from "lucide-react";
 import { startAttemptAction } from "@/lib/actions/attempts";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -33,13 +33,30 @@ export function TestAttemptStartPanel({ testId, sections, durationMinutes }: { t
           <TabsTrigger value="EXAM">Luyện thi</TabsTrigger>
           <TabsTrigger value="PRACTICE">Luyện tập</TabsTrigger>
         </TabsList>
-        <TabsContent value="EXAM" className="mt-4">
+        <TabsContent value="EXAM" className="mt-4 flex flex-col gap-4">
+          <ModeBanner
+            icon={<Clock className="size-4" />}
+            text="Tính giờ như thi thật, không xem đáp án cho tới khi nộp bài — chọn Full Test, riêng Listening/Reading, hoặc tự chọn Part bên dưới."
+          />
           <ModeOptions testId={testId} mode="EXAM" sections={sections} durationMinutes={durationMinutes} />
         </TabsContent>
-        <TabsContent value="PRACTICE" className="mt-4">
+        <TabsContent value="PRACTICE" className="mt-4 flex flex-col gap-4">
+          <ModeBanner
+            icon={<CheckCircle2 className="size-4" />}
+            text="Xem đáp án và giải thích ngay sau mỗi câu — vẫn chia riêng Full Test, Listening, Reading hoặc từng Part như bên Luyện thi."
+          />
           <ModeOptions testId={testId} mode="PRACTICE" sections={sections} durationMinutes={durationMinutes} />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function ModeBanner({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return (
+    <div className="flex items-start gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground/80">
+      <span className="mt-0.5 text-primary">{icon}</span>
+      <p>{text}</p>
     </div>
   );
 }

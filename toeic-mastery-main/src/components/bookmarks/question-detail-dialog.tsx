@@ -32,7 +32,11 @@ export function QuestionDetailDialog({ question, onClose }: { question: MistakeQ
           {question.passage && (
             <>
               {question.passage.audioUrl && <AudioPlayer src={question.passage.audioUrl} />}
-              <PassageViewer title={question.passage.title} texts={question.passage.texts} imageUrl={question.passage.imageUrl} />
+              <PassageViewer
+                title={question.passage.title}
+                texts={question.passage.texts}
+                imageUrls={question.passage.imageUrl ? [question.passage.imageUrl] : []}
+              />
             </>
           )}
           {!question.passage && question.imageUrl && (

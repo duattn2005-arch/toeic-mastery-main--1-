@@ -112,7 +112,11 @@ export function MistakePracticeRunner({
         {current.passage && (
           <>
             {current.passage.audioUrl && <AudioPlayer src={current.passage.audioUrl} />}
-            <PassageViewer title={current.passage.title} texts={current.passage.texts} imageUrl={current.passage.imageUrl} />
+            <PassageViewer
+              title={current.passage.title}
+              texts={current.passage.texts}
+              imageUrls={current.passage.imageUrl ? [current.passage.imageUrl] : []}
+            />
           </>
         )}
         {!current.passage && current.imageUrl && (

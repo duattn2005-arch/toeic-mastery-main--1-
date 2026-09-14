@@ -101,7 +101,11 @@ export function QuestionReviewCard({ review, index, attemptId }: { review: Quest
               ) : (
                 review.passage.transcript && <TtsAudioPlayer text={review.passage.transcript} className="mb-3" />
               )}
-              <PassageViewer title={review.passage.title} texts={review.passage.texts} imageUrl={review.passage.imageUrl} />
+              <PassageViewer
+                title={review.passage.title}
+                texts={review.passage.texts}
+                imageUrls={review.passage.imageUrl ? [review.passage.imageUrl] : []}
+              />
             </div>
           )}
           {!review.passage &&

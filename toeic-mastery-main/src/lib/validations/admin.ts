@@ -123,7 +123,7 @@ export const questionGroupFormSchema = z.object({
   layout: z.enum(PASSAGE_LAYOUT_VALUES),
   title: z.string().trim().optional(),
   audioUrl: z.string().trim().url().optional().or(z.literal("")),
-  imageUrl: z.string().trim().url().optional().or(z.literal("")),
+  imageUrls: z.array(z.string().trim().url()).max(3, "Tối đa 3 ảnh"),
   transcript: z.string().trim().optional(),
   texts: z.array(passageTextFormSchema).max(3),
   difficulty: z.enum(DIFFICULTY_VALUES),
