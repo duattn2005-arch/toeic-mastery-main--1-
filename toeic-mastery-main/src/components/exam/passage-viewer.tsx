@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +13,6 @@ export function PassageViewer({
   texts,
   imageUrls = [],
   priority = false,
-  imageSizes = "(max-width: 768px) 100vw, 480px",
 }: {
   title?: string | null;
   texts: PassageText[];
@@ -28,14 +26,6 @@ export function PassageViewer({
    * attempt review list), since marking all of those priority would just
    * make them all compete for bandwidth instead of loading any one faster. */
   priority?: boolean;
-  /** Next/Image `sizes` hint — the box itself is always `w-full` of its
-   * parent (no hardcoded cap), but this tells the optimizer which source
-   * resolution to actually fetch, so it should roughly match how wide the
-   * caller's own layout renders it. Defaults to a normal single-column
-   * reading passage; a caller giving the image a wider column (e.g. the
-   * exam runner's side-by-side group layout) should pass a wider hint too,
-   * or the image displays upscaled/soft from a smaller-than-needed source. */
-  imageSizes?: string;
 }) {
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
@@ -45,20 +35,25 @@ export function PassageViewer({
         // flex-wrap + justify-center (not a plain grid) so a lone trailing
         // image — e.g. the 3rd of 3 wrapping to its own row — centers
         // itself instead of sticking to the left like an empty grid cell
-        // would leave it. A fixed height (not aspect-[4/3]) gives portrait
-        // screenshots (forms/receipts/emails — the common case for these)
-        // as much room as landscape ones instead of being letterboxed down.
+        // would leave it. A plain <img> at w-full (not next/image inside a
+        // fixed-height box) so it renders at its own natural aspect ratio
+        // and actually fills the column width — these are almost always
+        // portrait form/e-mail/receipt screenshots, which a fixed-height
+        // object-contain box was squeezing down to a narrow strip with
+        // empty space on both sides instead of filling out.
         <div className={imageUrls.length > 1 ? "flex flex-wrap justify-center gap-3" : undefined}>
           {imageUrls.map((url, i) => (
-            <div
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
               key={url + i}
+              src={url}
+              alt=""
+              loading={priority && i === 0 ? "eager" : "lazy"}
               className={cn(
-                "relative w-full overflow-hidden rounded-xl bg-muted",
-                imageUrls.length > 1 ? "h-72 sm:h-96 sm:w-[calc(50%-0.375rem)]" : "h-80 sm:h-[28rem]"
+                "max-h-[75vh] w-full rounded-xl border border-border bg-muted object-contain",
+                imageUrls.length > 1 && "sm:w-[calc(50%-0.375rem)]"
               )}
-            >
-              <Image src={url} alt="" fill priority={priority && i === 0} className="object-contain" sizes={imageSizes} />
-            </div>
+            />
           ))}
         </div>
       )}

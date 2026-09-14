@@ -28,16 +28,12 @@ export function PassageStimulus({
   allowReplay,
   showAudioTour,
   className,
-  imageSizes,
 }: {
   passage: NonNullable<ExamData["passages"][string]>;
   mode: "PRACTICE" | "EXAM";
   allowReplay: boolean;
   showAudioTour: boolean;
   className?: string;
-  /** Forwarded to PassageViewer — see its own doc for why this should match
-   * how wide the caller's layout actually renders the image. */
-  imageSizes?: string;
 }) {
   return (
     <div className={className}>
@@ -48,7 +44,7 @@ export function PassageStimulus({
           <TtsAudioPlayer text={passage.transcript} allowReplay={mode === "PRACTICE" || allowReplay} className="mb-3" tourAnchor={showAudioTour} />
         )
       )}
-      <PassageViewer title={passage.title} texts={passage.texts} imageUrls={passage.imageUrls} priority imageSizes={imageSizes} />
+      <PassageViewer title={passage.title} texts={passage.texts} imageUrls={passage.imageUrls} priority />
       {showAudioTour && <ListeningAudioTour />}
     </div>
   );

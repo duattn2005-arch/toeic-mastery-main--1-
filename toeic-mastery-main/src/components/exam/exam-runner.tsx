@@ -214,7 +214,6 @@ export function ExamRunner({ data }: { data: ExamData }) {
                 mode={data.mode}
                 allowReplay={data.allowReplay}
                 showAudioTour={LISTENING_PARTS_WITH_PASSAGE.has(activeGroup.items[0].part)}
-                imageSizes="(max-width: 1024px) 100vw, 70vw"
               />
             </div>
             <div className="scrollbar-thin flex max-h-[70vh] flex-1 flex-col gap-4 overflow-y-auto pr-1 lg:max-h-[calc(100vh-9rem)]">
