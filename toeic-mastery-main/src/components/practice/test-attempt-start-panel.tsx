@@ -43,7 +43,7 @@ export function TestAttemptStartPanel({ testId, sections, durationMinutes }: { t
         <TabsContent value="PRACTICE" className="mt-4 flex flex-col gap-4">
           <ModeBanner
             icon={<CheckCircle2 className="size-4" />}
-            text="Xem đáp án và giải thích ngay sau mỗi câu — vẫn chia riêng Full Test, Listening, Reading hoặc từng Part như bên Luyện thi."
+            text="Xem đáp án và giải thích ngay sau mỗi câu"
           />
           <ModeOptions testId={testId} mode="PRACTICE" sections={sections} durationMinutes={durationMinutes} />
         </TabsContent>

@@ -44,17 +44,17 @@ export default async function AttemptResultPage({ params }: { params: Promise<{ 
         </span>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button asChild variant="outline" size="sm">
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <Button asChild size="lg">
           <Link href={`/history/${attemptId}/retry?scope=all`}>
-            <RotateCcw className="size-3.5" />
+            <RotateCcw className="size-4" />
             Luyện tập lại tất cả
           </Link>
         </Button>
         {wrongCount + skippedCount > 0 && (
-          <Button asChild variant="outline" size="sm">
+          <Button asChild size="lg" variant="destructive">
             <Link href={`/history/${attemptId}/retry?scope=mistakes`}>
-              <Target className="size-3.5" />
+              <Target className="size-4" />
               Luyện tập lại câu sai ({wrongCount + skippedCount})
             </Link>
           </Button>
