@@ -184,6 +184,9 @@ enum SkillDimensionType {
   PART
   GRAMMAR_TOPIC
   VOCAB_TOPIC
+  /** A composite, all-Parts diagnostic (see generatePlacementTest) rather
+   * than one specific skill dimension — dimensionKey is always "ALL". */
+  PLACEMENT
 }
 
 enum LearningPathStatus {

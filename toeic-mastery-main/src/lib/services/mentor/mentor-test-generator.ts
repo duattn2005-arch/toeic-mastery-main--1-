@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { getUnlockedDifficulty } from "./skill-mastery";
+import { TEST_PARTS, PART_META } from "@/lib/constants/toeic";
 import type { Prisma } from "@/generated/prisma/client";
 import type { SkillDimensionType, Difficulty, TestPart } from "@/generated/prisma/enums";
 
@@ -80,6 +81,95 @@ export async function generateMentorTest(params: {
   });
 
   return { mentorTestId: mentorTest.id, questionCount: selected.length, difficulty };
+}
+
+/** Parts whose questions share a group stimulus (audio/passage) — sampled
+ * whole-passage-at-a-time so a learner never sees a group missing the
+ * audio/reading context the rest of its questions depend on. */
+const GROUPED_PARTS: TestPart[] = ["PART3", "PART4", "PART6", "PART7"];
+
+export class PlacementTestUnavailableError extends Error {}
+
+/**
+ * Builds a short (~50-question), all-Parts composite MentorTest for a
+ * learner with no score baseline yet — sampled fresh from whatever is
+ * currently PUBLISHED across the whole question bank (proportional to each
+ * Part's real weight in a full test, via PART_META.questionCount) rather
+ * than one fixed pre-made Test, so it reflects newly-added content
+ * automatically without ever needing regeneration by hand.
+ *
+ * Only ever call this from the moment a user actually starts the test (see
+ * POST /api/mentor/placement-test) — never while the mentor is merely
+ * suggesting one in chat. Creating this row is deliberately the only thing
+ * that counts against the free-tier daily placement-test cap, so a learner
+ * who's just asking questions about it must never be charged for it.
+ */
+export async function generatePlacementTest(params: { userId: string; conversationId?: string }): Promise<{
+  mentorTestId: string;
+  questionCount: number;
+}> {
+  const recentlySeenCutoff = new Date(Date.now() - RECENT_EXCLUSION_DAYS * 24 * 60 * 60 * 1000);
+  const recentlySeen = await db.attemptAnswer.findMany({
+    where: { attempt: { userId: params.userId }, answeredAt: { gte: recentlySeenCutoff } },
+    select: { questionId: true },
+  });
+  const excludeIds = recentlySeen.map((r) => r.questionId);
+  const excludeFilter = excludeIds.length > 0 ? { id: { notIn: excludeIds } } : {};
+
+  const selectedIds: string[] = [];
+
+  for (const part of TEST_PARTS) {
+    // ~25% of the real full-test weight per Part (200 questions → ~50 total).
+    const target = Math.max(1, Math.round(PART_META[part].questionCount * 0.25));
+
+    if (GROUPED_PARTS.includes(part)) {
+      const passages = await db.passage.findMany({
+        where: { part, questions: { some: { status: "PUBLISHED", ...excludeFilter } } },
+        select: {
+          questions: {
+            where: { status: "PUBLISHED", ...excludeFilter },
+            orderBy: { orderIndex: "asc" },
+            select: { id: true },
+          },
+        },
+      });
+
+      let count = 0;
+      for (const passage of shuffle(passages)) {
+        if (count >= target || passage.questions.length === 0) continue;
+        selectedIds.push(...passage.questions.map((q) => q.id));
+        count += passage.questions.length;
+      }
+    } else {
+      const candidates = await db.question.findMany({
+        where: { part, status: "PUBLISHED", passageId: null, ...excludeFilter },
+        select: { id: true },
+        take: target * 3,
+      });
+      selectedIds.push(...shuffle(candidates).slice(0, Math.min(target, candidates.length)).map((q) => q.id));
+    }
+  }
+
+  if (selectedIds.length === 0) {
+    throw new PlacementTestUnavailableError("Ngân hàng câu hỏi hiện chưa đủ nội dung để tạo bài kiểm tra đầu vào.");
+  }
+
+  const mentorTest = await db.mentorTest.create({
+    data: {
+      userId: params.userId,
+      conversationId: params.conversationId,
+      dimensionType: "PLACEMENT",
+      dimensionKey: "ALL",
+      difficulty: "MEDIUM",
+      // No pass/fail bar — a placement test's job is to measure the
+      // learner's actual level, not to gate content behind a score.
+      passThreshold: 0,
+      questions: { create: selectedIds.map((id, index) => ({ questionId: id, orderIndex: index })) },
+    },
+    select: { id: true },
+  });
+
+  return { mentorTestId: mentorTest.id, questionCount: selectedIds.length };
 }
 
 function shuffle<T>(items: T[]): T[] {

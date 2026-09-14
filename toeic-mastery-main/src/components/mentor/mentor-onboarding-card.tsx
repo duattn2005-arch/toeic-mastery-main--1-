@@ -3,10 +3,11 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
-import { Target } from "lucide-react";
+import { Loader2, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MentorTestRunnerDialog } from "@/components/mentor/mentor-test-runner-dialog";
 
 interface OnboardingResponse {
   onboardingStatus: "NOT_STARTED" | "PLACEMENT_PENDING" | "READY";
@@ -26,6 +27,20 @@ async function submitOnboarding(input: { targetScore: number; examDate: string |
 }
 
 /**
+ * The only place a placement-test MentorTest gets created client-side —
+ * fired by the learner clicking "Làm bài kiểm tra đầu vào" below, never by
+ * anything the AI mentor says in chat. See POST /api/mentor/placement-test
+ * for why that distinction matters: creating the row there is what counts
+ * against the free-tier daily cap.
+ */
+async function startPlacementTest(): Promise<{ mentorTestId: string; questionCount: number }> {
+  const res = await fetch("/api/mentor/placement-test", { method: "POST" });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.error ?? "Không tạo được bài kiểm tra đầu vào");
+  return body;
+}
+
+/**
  * Cold-start onboarding (Module 1), inline at the top of /mentor rather
  * than a separate wizard page — shown only while
  * profile.onboardingStatus === "NOT_STARTED" (see the page's server
@@ -37,10 +52,16 @@ export function MentorOnboardingCard() {
   const router = useRouter();
   const [targetScore, setTargetScore] = React.useState("800");
   const [examDate, setExamDate] = React.useState("");
+  const [placementTestId, setPlacementTestId] = React.useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: () => submitOnboarding({ targetScore: Number(targetScore), examDate: examDate || null }),
     onSuccess: () => router.refresh(),
+  });
+
+  const placementMutation = useMutation({
+    mutationFn: startPlacementTest,
+    onSuccess: (data) => setPlacementTestId(data.mentorTestId),
   });
 
   if (mutation.data && !mutation.data.requiresPlacementTest) {
@@ -53,16 +74,28 @@ export function MentorOnboardingCard() {
 
   if (mutation.data?.requiresPlacementTest) {
     return (
-      <div className="flex flex-col gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-4 text-sm">
-        <p className="font-medium">Đã ghi nhận mục tiêu {targetScore} điểm.</p>
-        <p className="text-muted-foreground">
-          Bạn chưa có điểm ước tính nào — hãy làm một đề thi thử để AI Mentor biết điểm xuất phát, sau đó lộ trình học sẽ tự
-          động được tạo.
-        </p>
-        <Button asChild size="sm" className="w-fit">
-          <a href="/practice">Làm bài kiểm tra đầu vào</a>
-        </Button>
-      </div>
+      <>
+        <div className="flex flex-col gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-4 text-sm">
+          <p className="font-medium">Đã ghi nhận mục tiêu {targetScore} điểm.</p>
+          <p className="text-muted-foreground">
+            Bạn chưa có điểm ước tính nào — hãy làm một bài kiểm tra đầu vào ngắn (~50 câu, trải đều các Part) để AI Mentor
+            biết điểm xuất phát, sau đó lộ trình học sẽ tự động được tạo.
+          </p>
+          {placementMutation.isError && <p className="text-xs text-destructive">{placementMutation.error.message}</p>}
+          <Button size="sm" className="w-fit" onClick={() => placementMutation.mutate()} disabled={placementMutation.isPending}>
+            {placementMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+            Làm bài kiểm tra đầu vào
+          </Button>
+        </div>
+        {placementTestId && (
+          <MentorTestRunnerDialog
+            mentorTestId={placementTestId}
+            open={!!placementTestId}
+            onOpenChange={(next) => !next && setPlacementTestId(null)}
+            onPassed={() => router.refresh()}
+          />
+        )}
+      </>
     );
   }
 

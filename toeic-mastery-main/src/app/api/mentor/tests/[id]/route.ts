@@ -36,6 +36,17 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
               imageUrl: true,
               audioUrl: true,
               transcript: true,
+              passageId: true,
+              passage: {
+                select: {
+                  id: true,
+                  title: true,
+                  texts: true,
+                  audioUrl: true,
+                  imageUrls: true,
+                  transcript: true,
+                },
+              },
               options: { orderBy: { label: "asc" }, select: { label: true, content: true } },
             },
           },
@@ -64,6 +75,17 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         imageUrl: q.question.imageUrl,
         audioUrl: q.question.audioUrl,
         transcript: q.question.transcript,
+        passageId: q.question.passageId,
+        passage: q.question.passage
+          ? {
+              id: q.question.passage.id,
+              title: q.question.passage.title,
+              texts: q.question.passage.texts as unknown as { label: string; content: string }[],
+              audioUrl: q.question.passage.audioUrl,
+              imageUrls: q.question.passage.imageUrls,
+              transcript: q.question.passage.transcript,
+            }
+          : null,
         options: q.question.options,
       })),
     },
