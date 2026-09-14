@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 interface PassageText {
   label: string;
@@ -41,9 +42,21 @@ export function PassageViewer({
       {title && <p className="text-sm font-semibold">{title}</p>}
 
       {imageUrls.length > 0 && (
-        <div className={imageUrls.length > 1 ? "grid grid-cols-1 gap-2 sm:grid-cols-2" : undefined}>
+        // flex-wrap + justify-center (not a plain grid) so a lone trailing
+        // image — e.g. the 3rd of 3 wrapping to its own row — centers
+        // itself instead of sticking to the left like an empty grid cell
+        // would leave it. A fixed height (not aspect-[4/3]) gives portrait
+        // screenshots (forms/receipts/emails — the common case for these)
+        // as much room as landscape ones instead of being letterboxed down.
+        <div className={imageUrls.length > 1 ? "flex flex-wrap justify-center gap-3" : undefined}>
           {imageUrls.map((url, i) => (
-            <div key={url + i} className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-muted">
+            <div
+              key={url + i}
+              className={cn(
+                "relative w-full overflow-hidden rounded-xl bg-muted",
+                imageUrls.length > 1 ? "h-72 sm:h-96 sm:w-[calc(50%-0.375rem)]" : "h-80 sm:h-[28rem]"
+              )}
+            >
               <Image src={url} alt="" fill priority={priority && i === 0} className="object-contain" sizes={imageSizes} />
             </div>
           ))}
