@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Sparkles } from "lucide-react";
+import { RotateCcw, Sparkles, Target } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { getAttemptResult } from "@/lib/data/history";
+import { Button } from "@/components/ui/button";
 import { ScoreResultHeader } from "@/components/history/score-result-header";
 import { ScoreChart } from "@/components/shared/score-chart";
 import { QuestionReviewList } from "@/components/history/question-review-list";
@@ -40,6 +42,23 @@ export default async function AttemptResultPage({ params }: { params: Promise<{ 
         <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-3.5 py-1.5 text-sm font-semibold text-warning">
           <Sparkles className="size-4" />+{xpEarned} XP từ bài này
         </span>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/history/${attemptId}/retry?scope=all`}>
+            <RotateCcw className="size-3.5" />
+            Luyện tập lại tất cả
+          </Link>
+        </Button>
+        {wrongCount + skippedCount > 0 && (
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/history/${attemptId}/retry?scope=mistakes`}>
+              <Target className="size-3.5" />
+              Luyện tập lại câu sai ({wrongCount + skippedCount})
+            </Link>
+          </Button>
+        )}
       </div>
 
       <div data-tour="history-result-score">

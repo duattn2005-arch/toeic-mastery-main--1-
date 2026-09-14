@@ -24,13 +24,24 @@ export function MistakePracticeRunner({
   questions,
   backHref = "/practice/mistakes",
   backLabel = "Về Ngân hàng lỗi sai",
+  emptyStateMessage = "Không còn câu sai nào để luyện!",
+  footerNote = "Câu trả lời đúng ở đây giúp bạn luyện tập — để câu chính thức biến mất khỏi Ngân hàng lỗi sai, hãy làm lại một đề thi có chứa câu đó.",
 }: {
   questions: MistakeQuestion[];
   /** Where the "finished" screen's secondary button goes — defaults to the
    * mistake bank (this component's original caller); pass a different
-   * target when reusing it elsewhere (e.g. Đã lưu's "Học lại" flow). */
+   * target when reusing it elsewhere (e.g. Đã lưu's "Học lại" flow, or a
+   * specific attempt's "Luyện tập lại"). */
   backHref?: string;
   backLabel?: string;
+  /** Shown when `questions` is empty — the default wording only makes
+   * sense for an actual mistake set; a caller drilling through some other
+   * subset (e.g. "retry this whole attempt") should override it. */
+  emptyStateMessage?: string;
+  /** Small print under the finished screen's score — defaults to the
+   * mistake-bank-specific explanation of what clears a question from it;
+   * override for reuses where that line wouldn't be true. */
+  footerNote?: string;
 }) {
   const [index, setIndex] = React.useState(0);
   const [selected, setSelected] = React.useState<string | null>(null);
@@ -60,9 +71,9 @@ export function MistakePracticeRunner({
     return (
       <div className="mx-auto flex max-w-sm flex-col items-center gap-3 py-16 text-center">
         <CheckCircle2 className="size-10 text-success" />
-        <p className="text-sm font-medium">Không còn câu sai nào để luyện!</p>
+        <p className="text-sm font-medium">{emptyStateMessage}</p>
         <Button asChild variant="outline">
-          <Link href="/practice">Về Luyện đề</Link>
+          <Link href={backHref}>{backLabel}</Link>
         </Button>
       </div>
     );
@@ -83,9 +94,7 @@ export function MistakePracticeRunner({
             <p className="text-xs text-muted-foreground">Câu sai</p>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Câu trả lời đúng ở đây giúp bạn luyện tập — để câu chính thức biến mất khỏi Ngân hàng lỗi sai, hãy làm lại một đề thi có chứa câu đó.
-        </p>
+        <p className="text-xs text-muted-foreground">{footerNote}</p>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => window.location.reload()}>
             Luyện lại
