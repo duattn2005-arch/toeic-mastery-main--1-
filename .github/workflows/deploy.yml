@@ -57,6 +57,15 @@ jobs:
             npx prisma generate
             npx prisma migrate deploy
 
+            # This app deploys many times a day, and Turbopack's production
+            # build reuses .next's cached artifacts across runs — after enough
+            # consecutive deploys that drifted into a production ChunkLoadError
+            # ("Cannot find module .../ssr/<hash>._.js") on pages the latest
+            # commit never even touched, because their compiled output still
+            # pointed at a chunk hash an earlier build had since overwritten.
+            # Building from a clean slate every time costs a bit more time but
+            # can't accumulate that kind of stale cross-build reference.
+            rm -rf .next
             npm run build
 
             # Restart however this app is actually being run — tries PM2,
