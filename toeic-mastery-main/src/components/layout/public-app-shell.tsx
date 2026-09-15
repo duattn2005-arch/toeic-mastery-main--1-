@@ -1,6 +1,6 @@
-import { Headphones } from "lucide-react";
 import Link from "next/link";
 import { HeaderAuthButtons } from "@/components/marketing/landing-auth-buttons";
+import { LogoMark } from "@/components/shared/logo-mark";
 
 /**
  * Minimal shell for `(app)` routes visited while logged out — used only by
@@ -14,9 +14,7 @@ export function PublicAppShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-svh flex-col bg-background">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6">
         <Link href="/" className="flex items-center gap-2.5">
-          <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Headphones className="size-5" />
-          </span>
+          <LogoMark size={36} />
           <span className="text-lg font-semibold tracking-tight">TOEIC Mastery</span>
         </Link>
         <div className="flex items-center gap-2">

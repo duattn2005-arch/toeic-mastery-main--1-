@@ -1,14 +1,12 @@
 import Link from "next/link";
-import { Headphones } from "lucide-react";
+import { LogoMark } from "@/components/shared/logo-mark";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
       <div className="flex flex-col justify-center px-6 py-12 sm:px-10 lg:px-16">
         <Link href="/" className="mb-10 flex items-center gap-2.5">
-          <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Headphones className="size-5" />
-          </span>
+          <LogoMark size={36} />
           <span className="text-lg font-semibold tracking-tight">TOEIC Mastery</span>
         </Link>
         <div className="mx-auto w-full max-w-sm">{children}</div>

@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Crown, Flame, Headphones, Settings, ShieldCheck, Target, User } from "lucide-react";
+import { Crown, Flame, Settings, ShieldCheck, Target, User } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { MAIN_NAV } from "@/lib/constants/nav";
+import { LogoMark } from "@/components/shared/logo-mark";
 
 export interface SidebarProfile {
   fullName: string | null;
@@ -34,9 +35,7 @@ export function AppSidebar({ profile }: { profile: SidebarProfile }) {
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-sidebar text-sidebar-foreground lg:flex">
       <Link href="/dashboard" className="flex items-center gap-2.5 px-6 py-6">
-        <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <Headphones className="size-5" />
-        </span>
+        <LogoMark size={36} />
         <span className="text-base font-semibold tracking-tight text-white">TOEIC Mastery</span>
       </Link>
 

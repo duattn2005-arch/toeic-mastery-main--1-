@@ -21,6 +21,7 @@ import { SoundPlayerPopover } from "@/components/layout/sound-player-popover";
 import { SiteThemeGallery } from "@/components/layout/site-theme-gallery";
 import type { SidebarProfile } from "@/components/layout/app-sidebar";
 import type { VocabularyReminder } from "@/lib/data/vocabulary";
+import { LogoMark } from "@/components/shared/logo-mark";
 
 function ReminderBell({ reminder }: { reminder: VocabularyReminder }) {
   const total = reminder.dueTodayCount + reminder.dueTomorrowCount;
@@ -93,7 +94,8 @@ export function TopHeader({
           </Button>
         </SheetTrigger>
         <SheetContent side="left" className="w-72 bg-sidebar p-0 text-sidebar-foreground [&_svg]:text-current">
-          <SheetHeader className="px-6 py-6">
+          <SheetHeader className="flex-row items-center gap-2.5 px-6 py-6 space-y-0">
+            <LogoMark size={32} />
             <SheetTitle className="text-white">TOEIC Mastery</SheetTitle>
           </SheetHeader>
           <nav className="flex flex-col gap-1 px-3">

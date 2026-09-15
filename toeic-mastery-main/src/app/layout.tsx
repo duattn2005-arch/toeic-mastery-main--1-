@@ -14,6 +14,10 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  // Lets Next resolve the file-convention opengraph-image.png (see
+  // src/app/opengraph-image.png) to an absolute URL — required for link
+  // previews on other sites/apps, which can't follow a relative one.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   title: {
     default: "TOEIC Mastery — Nền tảng luyện thi TOEIC toàn diện",
     template: "%s — TOEIC Mastery",
