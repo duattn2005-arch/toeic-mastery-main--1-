@@ -23,8 +23,20 @@ export async function GET(
     return NextResponse.json({ error: "Đáp án chỉ hiển thị ở chế độ luyện tập hoặc sau khi nộp bài" }, { status: 403 });
   }
 
+  // Explicit questionIds (a "retry just these questions" attempt) takes
+  // priority — membership is checked directly since combining it with an
+  // `id: questionId` equality filter in one `where` would just overwrite
+  // itself. Otherwise falls back to the usual testId+parts scoping.
+  if (attempt.questionIds.length > 0 && !attempt.questionIds.includes(questionId)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   const question = await db.question.findFirst({
-    where: { id: questionId, testId: attempt.testId, ...(attempt.parts.length > 0 ? { part: { in: attempt.parts } } : {}) },
+    where: {
+      id: questionId,
+      ...(attempt.questionIds.length === 0
+        ? { testId: attempt.testId, ...(attempt.parts.length > 0 ? { part: { in: attempt.parts } } : {}) }
+        : {}),
+    },
     include: { options: true },
   });
   if (!question) return NextResponse.json({ error: "Not found" }, { status: 404 });

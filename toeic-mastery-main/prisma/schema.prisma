@@ -552,6 +552,17 @@ model Attempt {
    * can compare it with a plain array `equals`.
    */
   parts                TestPart[]    @default([])
+  /**
+   * Explicit question ids this attempt covers — used only by a "retry just
+   * these questions" attempt (see startMistakeRetryAction: redoing just the
+   * ones a previous attempt got wrong/skipped, which no testId+parts
+   * combination can express since they can span the whole test, not one
+   * contiguous Part range). Empty (the default, and every attempt before
+   * this field existed) means "use testId+parts as before" — every question
+   * query in getExamData/getAttemptResult/the submit and reveal routes
+   * checks this first and only falls back to testId+parts when it's empty.
+   */
+  questionIds          String[]      @default([]) @map("question_ids")
   currentQuestionIndex Int           @default(0) @map("current_question_index")
   allowedDurationSec   Int           @map("allowed_duration_sec")
   remainingSec         Int           @map("remaining_sec")

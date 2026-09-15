@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { RotateCcw, Sparkles, Target } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { getAttemptResult } from "@/lib/data/history";
+import { startAttemptAction, startMistakeRetryAction } from "@/lib/actions/attempts";
 import { Button } from "@/components/ui/button";
 import { ScoreResultHeader } from "@/components/history/score-result-header";
 import { ScoreChart } from "@/components/shared/score-chart";
@@ -45,19 +45,25 @@ export default async function AttemptResultPage({ params }: { params: Promise<{ 
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-3">
-        <Button asChild size="lg">
-          <Link href={`/history/${attemptId}/retry?scope=all`}>
+        {/* Both start a brand new real Attempt (same exam-runner UI as any
+           other attempt, timer/navigator/groups included) rather than some
+           separate lightweight review screen — "tất cả" reuses the exact
+           same testId+parts scope via startAttemptAction, "câu sai" needs
+           startMistakeRetryAction since no testId+parts combination can
+           express "just these specific questions". */}
+        <form action={startAttemptAction.bind(null, attempt.testId, "PRACTICE", attempt.parts)}>
+          <Button type="submit" size="lg">
             <RotateCcw className="size-4" />
             Luyện tập lại tất cả
-          </Link>
-        </Button>
+          </Button>
+        </form>
         {wrongCount + skippedCount > 0 && (
-          <Button asChild size="lg" variant="destructive">
-            <Link href={`/history/${attemptId}/retry?scope=mistakes`}>
+          <form action={startMistakeRetryAction.bind(null, attemptId)}>
+            <Button type="submit" size="lg" variant="destructive">
               <Target className="size-4" />
               Luyện tập lại câu sai ({wrongCount + skippedCount})
-            </Link>
-          </Button>
+            </Button>
+          </form>
         )}
       </div>
 

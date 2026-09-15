@@ -46,11 +46,18 @@ export async function getExamData(attemptId: string, userId: string): Promise<Ex
 
   const [questions, existingAnswers] = await Promise.all([
     db.question.findMany({
-      // Empty `parts` (the default — every attempt before this field
-      // existed, and "Full Test") means the whole test; a non-empty array
-      // (Listening-only, Reading-only, or a hand-picked set — see
-      // test-attempt-start-panel.tsx) scopes it to just those Parts.
-      where: { testId: attempt.testId, ...(attempt.parts.length > 0 ? { part: { in: attempt.parts } } : {}) },
+      // Explicit `questionIds` (a "retry just these questions" attempt —
+      // see startMistakeRetryAction) takes priority over testId+parts
+      // scoping entirely, since the set it covers can span the whole test
+      // rather than one contiguous Part range. Otherwise: empty `parts`
+      // (the default — every attempt before that field existed, and "Full
+      // Test") means the whole test; a non-empty array (Listening-only,
+      // Reading-only, or a hand-picked set — see test-attempt-start-panel.tsx)
+      // scopes it to just those Parts.
+      where:
+        attempt.questionIds.length > 0
+          ? { id: { in: attempt.questionIds } }
+          : { testId: attempt.testId, ...(attempt.parts.length > 0 ? { part: { in: attempt.parts } } : {}) },
       orderBy: { orderIndex: "asc" },
       include: { options: { orderBy: { label: "asc" }, select: { label: true, content: true } }, passage: true },
     }),

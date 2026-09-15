@@ -13,10 +13,16 @@ export async function getAttemptResult(attemptId: string, userId: string) {
   if (!attempt || attempt.userId !== userId) notFound();
 
   const questions = await db.question.findMany({
-    // Scoped to attempt.parts (empty = the whole test) — a Listening-only/
-    // Reading-only/hand-picked-Parts attempt never showed the rest of the
-    // test, so reviewing it shouldn't list those as missed questions either.
-    where: { testId: attempt.testId, ...(attempt.parts.length > 0 ? { part: { in: attempt.parts } } : {}) },
+    // Explicit questionIds (a "retry just these questions" attempt) takes
+    // priority — see getExamData's own copy of this same scoping for why.
+    // Otherwise scoped to attempt.parts (empty = the whole test) — a
+    // Listening-only/Reading-only/hand-picked-Parts attempt never showed
+    // the rest of the test, so reviewing it shouldn't list those as missed
+    // questions either.
+    where:
+      attempt.questionIds.length > 0
+        ? { id: { in: attempt.questionIds } }
+        : { testId: attempt.testId, ...(attempt.parts.length > 0 ? { part: { in: attempt.parts } } : {}) },
     orderBy: { orderIndex: "asc" },
     include: {
       options: { orderBy: { label: "asc" } },
