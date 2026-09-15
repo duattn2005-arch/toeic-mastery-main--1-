@@ -1,11 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { BookOpen, CheckCircle2, Clock, FileText, Headphones, Loader2 } from "lucide-react";
+import { BookOpen, FileText, Headphones, Loader2 } from "lucide-react";
 import { startAttemptAction } from "@/lib/actions/attempts";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PART_META } from "@/lib/constants/toeic";
 import { TEST_PART_VALUES } from "@/lib/validations/admin";
 import { cn } from "@/lib/utils";
@@ -17,46 +16,33 @@ interface SectionCount {
 }
 
 /**
- * Replaces the old "Bắt đầu thi / Luyện tập" two-button choice with a full
- * scope picker: Full Test, Listening-only, Reading-only, or a hand-picked
- * set of Parts — under either a timed "Luyện thi" (EXAM) or untimed-deadline
- * "Luyện tập" (PRACTICE) tab. Each option calls startAttemptAction directly
- * (a server action can be invoked straight from client code; its own
- * redirect() at the end still navigates to /exam/[id] same as before) —
- * everything here is just client-side selection state feeding that one call.
+ * One unified scope picker (Full Test, Listening-only, Reading-only, or a
+ * hand-picked set of Parts) instead of the old separate "Luyện thi"/"Luyện
+ * tập" tabs — the only real difference between those two was ever whether
+ * answers reveal immediately, so that's now just one checkbox here rather
+ * than a whole second screen duplicating every other option. Checked =
+ * PRACTICE, unchecked = EXAM; each preset still calls startAttemptAction
+ * directly (a server action invoked straight from client code — its own
+ * redirect() at the end still navigates to /exam/[id] same as before).
  */
 export function TestAttemptStartPanel({ testId, sections, durationMinutes }: { testId: string; sections: SectionCount[]; durationMinutes: number }) {
-  return (
-    <div data-tour="practice-mode-buttons">
-      <Tabs defaultValue="EXAM">
-        <TabsList>
-          <TabsTrigger value="EXAM">Luyện thi</TabsTrigger>
-          <TabsTrigger value="PRACTICE">Luyện tập</TabsTrigger>
-        </TabsList>
-        <TabsContent value="EXAM" className="mt-4 flex flex-col gap-4">
-          <ModeBanner
-            icon={<Clock className="size-4" />}
-            text="Tính giờ như thi thật, không xem đáp án cho tới khi nộp bài — chọn Full Test, riêng Listening/Reading, hoặc tự chọn Part bên dưới."
-          />
-          <ModeOptions testId={testId} mode="EXAM" sections={sections} durationMinutes={durationMinutes} />
-        </TabsContent>
-        <TabsContent value="PRACTICE" className="mt-4 flex flex-col gap-4">
-          <ModeBanner
-            icon={<CheckCircle2 className="size-4" />}
-            text="Xem đáp án và giải thích ngay sau mỗi câu"
-          />
-          <ModeOptions testId={testId} mode="PRACTICE" sections={sections} durationMinutes={durationMinutes} />
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
+  const [instantAnswers, setInstantAnswers] = React.useState(false);
+  const mode: "EXAM" | "PRACTICE" = instantAnswers ? "PRACTICE" : "EXAM";
 
-function ModeBanner({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
-    <div className="flex items-start gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground/80">
-      <span className="mt-0.5 text-primary">{icon}</span>
-      <p>{text}</p>
+    <div data-tour="practice-mode-buttons" className="flex flex-col gap-4">
+      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3.5 py-3 text-sm">
+        <Checkbox checked={instantAnswers} onCheckedChange={(v) => setInstantAnswers(!!v)} className="mt-0.5" />
+        <span className="flex-1">
+          <span className="font-medium">Xem đáp án và giải thích ngay sau mỗi câu</span>
+          <span className="mt-0.5 block text-xs text-muted-foreground">
+            {instantAnswers
+              ? "Hết giờ dự kiến vẫn có thể tiếp tục làm — phù hợp để ôn luyện."
+              : "Tính giờ như thi thật, không xem đáp án cho tới khi nộp bài."}
+          </span>
+        </span>
+      </label>
+      <ModeOptions testId={testId} mode={mode} sections={sections} durationMinutes={durationMinutes} />
     </div>
   );
 }
