@@ -1,7 +1,7 @@
 "use client";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
+import { ZoomableImage } from "@/components/exam/zoomable-image";
 
 interface PassageText {
   label: string;
@@ -32,27 +32,18 @@ export function PassageViewer({
       {title && <p className="text-sm font-semibold">{title}</p>}
 
       {imageUrls.length > 0 && (
-        // flex-wrap + justify-center (not a plain grid) so a lone trailing
-        // image — e.g. the 3rd of 3 wrapping to its own row — centers
-        // itself instead of sticking to the left like an empty grid cell
-        // would leave it. A plain <img> at w-full (not next/image inside a
-        // fixed-height box) so it renders at its own natural aspect ratio
-        // and actually fills the column width — these are almost always
-        // portrait form/e-mail/receipt screenshots, which a fixed-height
-        // object-contain box was squeezing down to a narrow strip with
-        // empty space on both sides instead of filling out.
-        <div className={imageUrls.length > 1 ? "flex flex-wrap justify-center gap-3" : undefined}>
+        // Always stacked one-per-row full width, never side-by-side — a
+        // 2-up grid halves each image's width, which is the opposite of
+        // what these (almost always tall form/e-mail/receipt screenshots)
+        // need. Each is independently click-to-zoom (ZoomableImage) for
+        // when even a full-width inline image is still too small to read.
+        <div className="flex flex-col gap-3">
           {imageUrls.map((url, i) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <ZoomableImage
               key={url + i}
               src={url}
-              alt=""
               loading={priority && i === 0 ? "eager" : "lazy"}
-              className={cn(
-                "max-h-[75vh] w-full rounded-xl border border-border bg-muted object-contain",
-                imageUrls.length > 1 && "sm:w-[calc(50%-0.375rem)]"
-              )}
+              className="max-h-[80vh]"
             />
           ))}
         </div>

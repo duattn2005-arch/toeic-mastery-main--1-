@@ -204,7 +204,7 @@ export function ExamRunner({ data }: { data: ExamData }) {
       <div className="flex flex-col gap-4">
         {activeGroup && activeGroup.items.length > 1 && passage ? (
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-            <div className="rounded-2xl border border-border bg-card p-5 shadow-soft lg:sticky lg:top-32 lg:w-[70%] lg:shrink-0">
+            <div className="rounded-2xl border border-border bg-card p-5 shadow-soft lg:sticky lg:top-32 lg:w-[75%] lg:shrink-0">
               <p className="mb-3 text-sm font-semibold text-primary">
                 Nhóm câu {activeGroup.startIndex + 1}–{activeGroup.startIndex + activeGroup.items.length} ({activeGroup.items.length} câu hỏi)
               </p>

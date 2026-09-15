@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { Crown, Eye, Flag, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { AudioPlayer } from "@/components/exam/audio-player";
 import { TtsAudioPlayer } from "@/components/exam/tts-audio-player";
 import { PassageStimulus } from "@/components/exam/passage-stimulus";
+import { ZoomableImage } from "@/components/exam/zoomable-image";
 import { AnswerOptionList } from "@/components/exam/answer-option";
 import { AskMentorButton } from "@/components/shared/ask-mentor-button";
 import { PART_META } from "@/lib/constants/toeic";
@@ -108,11 +108,7 @@ export function ExamQuestionPanel({
         <PassageStimulus passage={passage} mode={mode} allowReplay={allowReplay} showAudioTour={isListeningQuestion} />
       )}
 
-      {question.imageUrl && !passage?.imageUrls.length && (
-        <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-muted">
-          <Image src={question.imageUrl} alt="" fill priority className="object-contain" sizes="(max-width: 768px) 100vw, 480px" />
-        </div>
-      )}
+      {question.imageUrl && !passage?.imageUrls.length && <ZoomableImage src={question.imageUrl} loading="eager" className="max-h-[80vh]" />}
 
       {!hideSharedPassage && !passage?.audioUrl && !passage?.transcript && (
         question.audioUrl ? (
