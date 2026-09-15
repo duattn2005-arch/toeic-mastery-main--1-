@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, LayoutGrid, Loader2, Send } from "lucide-react";
+import { ChevronLeft, ChevronRight, LayoutGrid, LogOut, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -167,6 +168,16 @@ export function ExamRunner({ data }: { data: ExamData }) {
           <p className="text-xs text-muted-foreground">{data.mode === "PRACTICE" ? "Chế độ luyện tập" : "Chế độ thi thử"}</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Doesn't submit or lose anything — the attempt just stays
+             IN_PROGRESS and resumable, same as closing the tab would, but
+             a learner who wants to abandon this scope and pick a different
+             Part shouldn't have to rely on the browser back button. */}
+          <Button variant="ghost" size="sm" asChild>
+            <Link href={`/practice/${data.testId}`}>
+              <LogOut className="size-4" />
+              Thoát
+            </Link>
+          </Button>
           <ExamTimer remainingSec={remainingSec} />
           <Sheet open={navigatorOpen} onOpenChange={setNavigatorOpen}>
             <SheetTrigger asChild>
@@ -208,13 +219,20 @@ export function ExamRunner({ data }: { data: ExamData }) {
               <p className="mb-3 text-sm font-semibold text-primary">
                 Nhóm câu {activeGroup.startIndex + 1}–{activeGroup.startIndex + activeGroup.items.length} ({activeGroup.items.length} câu hỏi)
               </p>
-              <PassageStimulus
-                key={activeGroup.passageId}
-                passage={passage}
-                mode={data.mode}
-                allowReplay={data.allowReplay}
-                showAudioTour={LISTENING_PARTS_WITH_PASSAGE.has(activeGroup.items[0].part)}
-              />
+              {/* A group with 2-3 full-width stacked images easily runs
+                 taller than the viewport — its own bounded, scrollable
+                 area (same height budget as the question column opposite
+                 it) keeps a real scrollbar on the images instead of the
+                 whole sticky sidebar just overflowing off-screen. */}
+              <div className="scrollbar-thin max-h-[70vh] overflow-y-auto pr-1 lg:max-h-[calc(100vh-9rem)]">
+                <PassageStimulus
+                  key={activeGroup.passageId}
+                  passage={passage}
+                  mode={data.mode}
+                  allowReplay={data.allowReplay}
+                  showAudioTour={LISTENING_PARTS_WITH_PASSAGE.has(activeGroup.items[0].part)}
+                />
+              </div>
             </div>
             <div className="scrollbar-thin flex max-h-[70vh] flex-1 flex-col gap-4 overflow-y-auto pr-1 lg:max-h-[calc(100vh-9rem)]">
               {activeGroup.items.map((q, i) => {

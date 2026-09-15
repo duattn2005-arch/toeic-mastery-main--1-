@@ -101,12 +101,8 @@ export default async function TestDetailPage({
           </div>
         )}
 
-        <div className="mt-6 flex flex-wrap gap-3">
-          {activeAttempt ? (
-            <Button size="lg" asChild>
-              <Link href={`/exam/${activeAttempt.id}`}>Tiếp tục bài làm dở</Link>
-            </Button>
-          ) : test.isPro && !pro ? (
+        <div className="mt-6 flex w-full flex-col gap-4">
+          {test.isPro && !pro ? (
             <div className="flex items-center gap-3 rounded-xl border border-amber-400/40 bg-amber-500/5 p-3.5 text-sm">
               <Crown className="size-5 shrink-0 text-amber-500" />
               <p className="flex-1">Đề thi này chỉ dành cho tài khoản Pro.</p>
@@ -115,11 +111,25 @@ export default async function TestDetailPage({
               </Button>
             </div>
           ) : (
-            <TestAttemptStartPanel
-              testId={test.id}
-              sections={test.sections.map((s) => ({ part: s.part, questionCount: s.questionCount }))}
-              durationMinutes={test.durationMinutes}
-            />
+            <>
+              {/* Shown alongside the picker, not instead of it — a learner
+                 with an unfinished attempt should still be able to walk
+                 away from it and start practicing a different Part instead
+                 of being stuck resuming the one thing they left dangling. */}
+              {activeAttempt && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3.5 text-sm">
+                  <p className="flex-1">Bạn có một bài đang làm dở.</p>
+                  <Button asChild size="sm">
+                    <Link href={`/exam/${activeAttempt.id}`}>Tiếp tục làm đề</Link>
+                  </Button>
+                </div>
+              )}
+              <TestAttemptStartPanel
+                testId={test.id}
+                sections={test.sections.map((s) => ({ part: s.part, questionCount: s.questionCount }))}
+                durationMinutes={test.durationMinutes}
+              />
+            </>
           )}
         </div>
       </div>

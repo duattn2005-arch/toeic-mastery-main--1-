@@ -5,6 +5,7 @@ import type { ExamAnswerState, ExamQuestion } from "@/store/exam-store";
 
 export interface ExamData {
   attemptId: string;
+  testId: string;
   testTitle: string;
   mode: "PRACTICE" | "EXAM";
   allowReplay: boolean;
@@ -86,6 +87,7 @@ export async function getExamData(attemptId: string, userId: string): Promise<Ex
 
   return {
     attemptId: attempt.id,
+    testId: attempt.testId,
     testTitle: attempt.test.title,
     mode: attempt.mode,
     allowReplay: attempt.test.allowReplay,
