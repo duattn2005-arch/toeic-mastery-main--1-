@@ -1,6 +1,6 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import type { ShopItemRarity } from "@/lib/constants/xp-shop";
-import { RabbitIllustration } from "@/components/mascot/mascot-illustration";
 
 /**
  * Every shop item (see XP_SHOP_ITEMS in xp-shop.ts) gets its own bespoke
@@ -44,8 +44,8 @@ function FrameShell({
   return (
     <div className={cn("relative shrink-0", className)} style={{ width: size, height: size }}>
       <div className="absolute inset-0 rounded-full p-[3px]" style={{ background: ring, boxShadow: `0 0 ${glow} color-mix(in oklab, ${ring.match(/#[0-9a-f]{6}/i)?.[0] ?? "#888"} 70%, transparent)` }}>
-        <div className="flex size-full items-center justify-center rounded-full bg-card">
-          <RabbitIllustration state="success" className="size-[60%]" />
+        <div className="flex size-full items-center justify-center overflow-hidden rounded-full bg-card">
+          <Image src="/mascot-avatar.png" alt="" width={128} height={128} className="size-[80%] rounded-full object-cover" />
         </div>
       </div>
       {children}
