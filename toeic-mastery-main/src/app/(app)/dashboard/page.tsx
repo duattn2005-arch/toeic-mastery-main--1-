@@ -153,7 +153,7 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      <StudyMascot state={getDashboardMascotState(data.profile)} character="rabbit" />
+      <StudyMascot state={getDashboardMascotState(data.profile)} />
       <DashboardTour />
     </div>
   );

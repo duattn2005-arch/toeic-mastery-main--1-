@@ -444,6 +444,29 @@
   animation: mascot-jump 0.9s ease-out 2;
 }
 
+/* A gentler "don't forget" wiggle for the reminder state — distinct from
+   the celebratory mascot-jump bounce so success/encouraging and reminder
+   read differently at a glance even though the mascot's face can't change
+   expression. */
+@keyframes mascot-shake {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  20%,
+  60% {
+    transform: rotate(-8deg);
+  }
+  40%,
+  80% {
+    transform: rotate(8deg);
+  }
+}
+
+.mascot-shake {
+  animation: mascot-shake 0.6s ease-in-out 2;
+}
+
 @keyframes notify-dot-pulse {
   0%,
   100% {
@@ -812,6 +835,7 @@
   .bloom-pulse,
   .mascot-bubble-auto,
   .mascot-jump,
+  .mascot-shake,
   .notify-dot {
     animation: none;
   }
