@@ -1,15 +1,18 @@
 import { User as UserIcon, Rocket, Flame } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { AnimatedNumber } from "@/components/dashboard/animated-number";
+import { AccountAvatar } from "@/components/shared/account-avatar";
 import type { XpProgress } from "@/lib/services/xp";
 
 export function LevelAvatarCard({
   avatarUrl,
+  equippedShopItemId,
   xpProgress,
   todayXp,
   streakCount,
 }: {
   avatarUrl: string | null;
+  equippedShopItemId: string | null;
   xpProgress: XpProgress;
   todayXp: number;
   streakCount: number;
@@ -21,12 +24,12 @@ export function LevelAvatarCard({
       <div className="relative">
         <span className="absolute inset-0 -m-1.5 rounded-full bg-white/25 blur-lg" aria-hidden />
         <span className="relative flex size-24 items-center justify-center overflow-hidden rounded-full border-[3px] border-white/50 bg-white/20 shadow-lg">
-          {avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatarUrl} alt="" className="size-full object-cover" />
-          ) : (
-            <UserIcon className="size-9 text-white/80" />
-          )}
+          <AccountAvatar
+            avatarUrl={avatarUrl}
+            equippedShopItemId={equippedShopItemId}
+            size={96}
+            fallback={<UserIcon className="size-9 text-white/80" />}
+          />
         </span>
       </div>
 

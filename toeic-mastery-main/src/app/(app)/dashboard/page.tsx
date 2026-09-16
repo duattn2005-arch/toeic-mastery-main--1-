@@ -70,6 +70,7 @@ export default async function DashboardPage() {
           greeting={getGreeting()}
           firstName={firstName}
           avatarUrl={data.profile.avatarUrl}
+          equippedShopItemId={profile.equippedShopItemId}
           xpProgress={data.xpProgress}
           todayXp={data.todayXp}
           streakCount={data.profile.streakCount}
@@ -153,7 +154,7 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      <StudyMascot state={getDashboardMascotState(data.profile)} />
+      <StudyMascot state={getDashboardMascotState(data.profile)} equippedShopItemId={profile.equippedShopItemId} />
       <DashboardTour />
     </div>
   );

@@ -11,6 +11,7 @@ export function DashboardHero({
   greeting,
   firstName,
   avatarUrl,
+  equippedShopItemId,
   xpProgress,
   todayXp,
   streakCount,
@@ -22,6 +23,7 @@ export function DashboardHero({
   greeting: string;
   firstName: string;
   avatarUrl: string | null;
+  equippedShopItemId: string | null;
   xpProgress: XpProgress;
   todayXp: number;
   streakCount: number;
@@ -121,7 +123,13 @@ export function DashboardHero({
             </div>
           </div>
 
-          <LevelAvatarCard avatarUrl={avatarUrl} xpProgress={xpProgress} todayXp={todayXp} streakCount={streakCount} />
+          <LevelAvatarCard
+            avatarUrl={avatarUrl}
+            equippedShopItemId={equippedShopItemId}
+            xpProgress={xpProgress}
+            todayXp={todayXp}
+            streakCount={streakCount}
+          />
         </div>
       </div>
     </section>

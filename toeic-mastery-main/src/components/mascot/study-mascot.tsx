@@ -7,6 +7,8 @@ import { pickMascotMessage } from "@/components/mascot/mascot-messages";
 import { useMascotMinimized } from "@/components/mascot/use-mascot-minimized";
 import { MentorPopover } from "@/components/mascot/mentor-popover";
 import type { MascotState } from "@/components/mascot/types";
+import { XpShopItemVisual } from "@/components/shop/xp-shop-item-visual";
+import { XP_SHOP_ITEMS } from "@/lib/constants/xp-shop";
 import { cn } from "@/lib/utils";
 
 const BADGE_ICON: Record<MascotState, LucideIcon | null> = {
@@ -38,7 +40,22 @@ const STATE_MOTION: Record<MascotState, string> = {
   reminder: "mascot-shake",
 };
 
-function MascotAvatar({ state, className }: { state: MascotState; className?: string }) {
+function MascotAvatar({
+  state,
+  size,
+  equippedShopItemId,
+  className,
+}: {
+  state: MascotState;
+  /** Pixel size to render at — needed alongside `className`'s Tailwind
+   * size-* class because XpShopItemVisual takes an explicit numeric size,
+   * not CSS. */
+  size: number;
+  equippedShopItemId?: string | null;
+  className?: string;
+}) {
+  const equippedItem = equippedShopItemId ? XP_SHOP_ITEMS.find((i) => i.id === equippedShopItemId) : undefined;
+
   return (
     <span
       className={cn(
@@ -48,7 +65,11 @@ function MascotAvatar({ state, className }: { state: MascotState; className?: st
         className
       )}
     >
-      <Image src="/mascot-avatar.png" alt="" width={64} height={64} className="size-full rounded-full object-cover" priority />
+      {equippedItem ? (
+        <XpShopItemVisual id={equippedItem.id} rarity={equippedItem.rarity} size={size} />
+      ) : (
+        <Image src="/mascot-avatar.png" alt="" width={size} height={size} className="size-full rounded-full object-cover" priority />
+      )}
     </span>
   );
 }
@@ -72,7 +93,15 @@ function hashToIndex(id: string, mod: number) {
  * Mentor chat panel (see MentorPopover) without leaving the current page;
  * the small X that appears on hover minimizes the mascot itself instead.
  */
-export function StudyMascot({ state, message }: { state: MascotState; message?: string }) {
+export function StudyMascot({
+  state,
+  message,
+  equippedShopItemId = null,
+}: {
+  state: MascotState;
+  message?: string;
+  equippedShopItemId?: string | null;
+}) {
   const [minimized, setMinimized] = useMascotMinimized();
 
   if (minimized) {
@@ -83,21 +112,25 @@ export function StudyMascot({ state, message }: { state: MascotState; message?: 
         aria-label="Hiện trợ lý học tập"
         className="fixed bottom-20 right-4 z-40 flex size-11 items-center justify-center rounded-full border border-border bg-card shadow-soft transition-transform hover:scale-105 lg:bottom-5 lg:right-5"
       >
-        <MascotAvatar state="idle" className="size-8" />
+        <MascotAvatar state="idle" size={32} equippedShopItemId={equippedShopItemId} className="size-8" />
       </button>
     );
   }
 
-  return <MascotFace state={state} message={message} onMinimize={() => setMinimized(true)} />;
+  return (
+    <MascotFace state={state} message={message} equippedShopItemId={equippedShopItemId} onMinimize={() => setMinimized(true)} />
+  );
 }
 
 function MascotFace({
   state,
   message,
+  equippedShopItemId,
   onMinimize,
 }: {
   state: MascotState;
   message?: string;
+  equippedShopItemId: string | null;
   onMinimize: () => void;
 }) {
   const id = React.useId();
@@ -130,7 +163,7 @@ function MascotFace({
             aria-label="Hỏi AI Mentor"
             className="mascot-float relative flex size-16 items-center justify-center rounded-full border border-border bg-card shadow-soft"
           >
-            <MascotAvatar key={cycleKey} state={state} className="size-12" />
+            <MascotAvatar key={cycleKey} state={state} size={48} equippedShopItemId={equippedShopItemId} className="size-12" />
             {Badge && (
               <span className="absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
                 <Badge className="size-3" />

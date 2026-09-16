@@ -93,7 +93,11 @@ export default async function AttemptResultPage({ params }: { params: Promise<{ 
         <QuestionReviewList reviews={questionReviews} attemptId={attemptId} />
       </section>
 
-      <StudyMascot state="success" message={`Bạn vừa nhận +${xpEarned} XP từ bài này! 🎉`} />
+      <StudyMascot
+        state="success"
+        message={`Bạn vừa nhận +${xpEarned} XP từ bài này! 🎉`}
+        equippedShopItemId={profile.equippedShopItemId}
+      />
       <HistoryResultTour />
     </div>
   );
