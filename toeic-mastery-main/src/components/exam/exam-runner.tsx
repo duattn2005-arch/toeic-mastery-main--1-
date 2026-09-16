@@ -196,6 +196,12 @@ export function ExamRunner({ data }: { data: ExamData }) {
 
   const currentAnswer = answers[currentQuestion.id];
   const passage = currentQuestion.passageId ? (data.passages[currentQuestion.passageId] ?? null) : null;
+  // A Part 3/4 listening group is usually just an audio player with nothing
+  // else to show — giving it the same wide column a Part 6/7 reading
+  // passage (images/text that actually need the room) gets left it mostly
+  // empty next to a cramped question list. Size the passage column by what
+  // it actually contains instead of a fixed split.
+  const passageHasVisualContent = !!(passage && (passage.imageUrls.length > 0 || passage.texts.length > 0));
 
   return (
     <div className="flex flex-col gap-4">
@@ -253,7 +259,12 @@ export function ExamRunner({ data }: { data: ExamData }) {
       <div className="flex flex-col gap-4">
         {activeGroup && activeGroup.items.length > 1 && passage ? (
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-            <div className="rounded-2xl border border-border bg-card p-5 shadow-soft lg:sticky lg:top-32 lg:w-[75%] lg:shrink-0">
+            <div
+              className={cn(
+                "rounded-2xl border border-border bg-card p-5 shadow-soft lg:sticky lg:top-32 lg:shrink-0",
+                passageHasVisualContent ? "lg:w-[75%]" : "lg:w-[38%]"
+              )}
+            >
               <p className="mb-3 text-sm font-semibold text-primary">
                 Nhóm câu {activeGroup.startIndex + 1}–{activeGroup.startIndex + activeGroup.items.length} ({activeGroup.items.length} câu hỏi)
               </p>
