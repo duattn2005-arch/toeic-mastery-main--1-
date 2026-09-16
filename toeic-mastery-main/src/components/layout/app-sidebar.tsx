@@ -6,7 +6,7 @@ import { Crown, Flame, Settings, ShieldCheck, Target, User } from "lucide-react"
 
 import { cn } from "@/lib/utils";
 import { MAIN_NAV } from "@/lib/constants/nav";
-import { LogoMark } from "@/components/shared/logo-mark";
+import { EquippableLogoMark } from "@/components/shared/logo-mark";
 import { AccountAvatar } from "@/components/shared/account-avatar";
 
 export interface SidebarProfile {
@@ -37,7 +37,7 @@ export function AppSidebar({ profile }: { profile: SidebarProfile }) {
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-sidebar text-sidebar-foreground lg:flex">
       <Link href="/dashboard" className="flex items-center gap-2.5 px-6 py-6">
-        <LogoMark size={36} />
+        <EquippableLogoMark size={36} equippedShopItemId={profile.equippedShopItemId} />
         <span className="text-base font-semibold tracking-tight text-white">TOEIC Mastery</span>
       </Link>
 

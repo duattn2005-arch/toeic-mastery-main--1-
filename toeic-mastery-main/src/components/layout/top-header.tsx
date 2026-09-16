@@ -21,7 +21,7 @@ import { SoundPlayerPopover } from "@/components/layout/sound-player-popover";
 import { SiteThemeGallery } from "@/components/layout/site-theme-gallery";
 import type { SidebarProfile } from "@/components/layout/app-sidebar";
 import type { VocabularyReminder } from "@/lib/data/vocabulary";
-import { LogoMark } from "@/components/shared/logo-mark";
+import { EquippableLogoMark } from "@/components/shared/logo-mark";
 import { AccountAvatar } from "@/components/shared/account-avatar";
 
 function ReminderBell({ reminder }: { reminder: VocabularyReminder }) {
@@ -96,7 +96,7 @@ export function TopHeader({
         </SheetTrigger>
         <SheetContent side="left" className="w-72 bg-sidebar p-0 text-sidebar-foreground [&_svg]:text-current">
           <SheetHeader className="flex-row items-center gap-2.5 px-6 py-6 space-y-0">
-            <LogoMark size={32} />
+            <EquippableLogoMark size={32} equippedShopItemId={profile.equippedShopItemId} />
             <SheetTitle className="text-white">TOEIC Mastery</SheetTitle>
           </SheetHeader>
           <nav className="flex flex-col gap-1 px-3">
