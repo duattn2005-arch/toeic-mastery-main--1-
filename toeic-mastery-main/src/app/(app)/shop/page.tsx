@@ -28,7 +28,13 @@ export default async function ShopPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {XP_SHOP_ITEMS.map((item) => (
-          <XpShopItemCard key={item.id} item={item} userXp={userXp} owned={ownedItemIds.has(item.id)} />
+          <XpShopItemCard
+            key={item.id}
+            item={item}
+            userXp={userXp}
+            owned={ownedItemIds.has(item.id)}
+            equipped={profile.equippedShopItemId === item.id}
+          />
         ))}
       </div>
     </div>

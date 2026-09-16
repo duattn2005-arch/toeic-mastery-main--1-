@@ -287,6 +287,14 @@ model Profile {
    * never lower the account's rank/level.
    */
   xpSpent                 Int       @default(0) @map("xp_spent")
+  /**
+   * Id of the XP_SHOP_ITEMS entry (src/lib/constants/xp-shop.ts) currently
+   * shown as this account's avatar frame in the header/sidebar — null means
+   * the plain avatarUrl photo (or its fallback initial) with no frame.
+   * Deliberately not a foreign key: shop items are a static catalog, not a
+   * DB table, same as UserShopItem.itemId.
+   */
+  equippedShopItemId      String?   @map("equipped_shop_item_id")
   createdAt               DateTime  @default(now()) @map("created_at")
   updatedAt               DateTime  @updatedAt @map("updated_at")
 

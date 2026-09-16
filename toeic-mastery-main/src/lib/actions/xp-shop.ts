@@ -31,7 +31,12 @@ export async function redeemShopItemAction(itemId: string): Promise<RedeemShopIt
 
   try {
     await db.$transaction([
-      db.profile.update({ where: { id: profile.id }, data: { xpSpent: { increment: item.priceXp } } }),
+      // Redeeming immediately wears it too — a shop full of items no one
+      // ever sees applied anywhere isn't much of a shop.
+      db.profile.update({
+        where: { id: profile.id },
+        data: { xpSpent: { increment: item.priceXp }, equippedShopItemId: item.id },
+      }),
       db.userShopItem.create({ data: { userId: profile.id, itemId: item.id, priceXp: item.priceXp } }),
     ]);
   } catch (err) {
@@ -44,5 +49,29 @@ export async function redeemShopItemAction(itemId: string): Promise<RedeemShopIt
   }
 
   revalidatePath("/shop");
+  revalidatePath("/", "layout");
   return { spendableXp: spendableXp - item.priceXp };
+}
+
+export interface EquipShopItemResult {
+  error?: string;
+}
+
+/** Switches the account's displayed avatar frame to an already-owned item —
+ * redeeming a new one auto-equips it (see above), this is for going back to
+ * a previously bought one instead. */
+export async function equipShopItemAction(itemId: string): Promise<EquipShopItemResult> {
+  const profile = await getCurrentProfile();
+  if (!profile) return { error: "Vui lòng đăng nhập" };
+
+  const owned = await db.userShopItem.findUnique({
+    where: { userId_itemId: { userId: profile.id, itemId } },
+  });
+  if (!owned) return { error: "Bạn chưa sở hữu vật phẩm này" };
+
+  await db.profile.update({ where: { id: profile.id }, data: { equippedShopItemId: itemId } });
+
+  revalidatePath("/shop");
+  revalidatePath("/", "layout");
+  return {};
 }

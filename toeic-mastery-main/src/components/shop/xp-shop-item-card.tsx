@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { getShopItemStatus, type ShopItem, type ShopItemRarity } from "@/lib/constants/xp-shop";
-import { redeemShopItemAction } from "@/lib/actions/xp-shop";
+import { redeemShopItemAction, equipShopItemAction } from "@/lib/actions/xp-shop";
 import { XpShopItemVisual } from "@/components/shop/xp-shop-item-visual";
 
 const RARITY_STYLES: Record<ShopItemRarity, { label: string; badge: string }> = {
@@ -18,7 +18,17 @@ const RARITY_STYLES: Record<ShopItemRarity, { label: string; badge: string }> = 
   MYTHIC: { label: "Mythic", badge: "bg-destructive/10 text-destructive" },
 };
 
-export function XpShopItemCard({ item, userXp, owned }: { item: ShopItem; userXp: number; owned: boolean }) {
+export function XpShopItemCard({
+  item,
+  userXp,
+  owned,
+  equipped,
+}: {
+  item: ShopItem;
+  userXp: number;
+  owned: boolean;
+  equipped: boolean;
+}) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const { canAfford, missingXp } = getShopItemStatus(userXp, item.priceXp);
@@ -32,7 +42,19 @@ export function XpShopItemCard({ item, userXp, owned }: { item: ShopItem; userXp
         toast.error(result.error);
         return;
       }
-      toast.success(`Đã đổi "${item.name}"!`);
+      toast.success(`Đã đổi và trang bị "${item.name}"!`);
+      router.refresh();
+    });
+  }
+
+  function handleEquip() {
+    startTransition(async () => {
+      const result = await equipShopItemAction(item.id);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(`Đã trang bị "${item.name}"!`);
       router.refresh();
     });
   }
@@ -60,10 +82,20 @@ export function XpShopItemCard({ item, userXp, owned }: { item: ShopItem; userXp
           </span>
         </div>
 
-        {owned ? (
+        {equipped ? (
           <span className="flex items-center gap-1 rounded-full bg-success/10 px-3 py-1.5 text-xs font-semibold text-success">
-            <Check className="size-3.5" /> Đã sở hữu
+            <Check className="size-3.5" /> Đang dùng
           </span>
+        ) : owned ? (
+          <button
+            type="button"
+            onClick={handleEquip}
+            disabled={pending}
+            className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+          >
+            {pending && <Loader2 className="size-3 animate-spin" />}
+            Trang bị
+          </button>
         ) : canAfford ? (
           <button
             type="button"

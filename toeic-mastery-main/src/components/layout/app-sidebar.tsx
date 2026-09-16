@@ -7,11 +7,13 @@ import { Crown, Flame, Settings, ShieldCheck, Target, User } from "lucide-react"
 import { cn } from "@/lib/utils";
 import { MAIN_NAV } from "@/lib/constants/nav";
 import { LogoMark } from "@/components/shared/logo-mark";
+import { AccountAvatar } from "@/components/shared/account-avatar";
 
 export interface SidebarProfile {
   fullName: string | null;
   email: string;
   avatarUrl: string | null;
+  equippedShopItemId: string | null;
   role: "STUDENT" | "ADMIN";
   streakCount: number;
   targetScore: number | null;
@@ -100,12 +102,12 @@ export function AppSidebar({ profile }: { profile: SidebarProfile }) {
           >
             <span className="relative flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-active-bg text-sidebar-foreground">
               <span className="flex size-full items-center justify-center overflow-hidden rounded-full">
-                {profile.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={profile.avatarUrl} alt="" className="size-full object-cover" />
-                ) : (
-                  <User className="size-4" />
-                )}
+                <AccountAvatar
+                  avatarUrl={profile.avatarUrl}
+                  equippedShopItemId={profile.equippedShopItemId}
+                  size={32}
+                  fallback={<User className="size-4" />}
+                />
               </span>
               {isPro && (
                 <span

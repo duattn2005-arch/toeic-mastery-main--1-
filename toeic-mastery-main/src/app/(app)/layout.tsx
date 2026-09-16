@@ -34,6 +34,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         fullName: profile.fullName,
         email: profile.email,
         avatarUrl: profile.avatarUrl,
+        equippedShopItemId: profile.equippedShopItemId,
         role: profile.role,
         streakCount: profile.streakCount,
         targetScore: profile.targetScore,

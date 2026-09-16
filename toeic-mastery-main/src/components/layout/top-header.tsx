@@ -22,6 +22,7 @@ import { SiteThemeGallery } from "@/components/layout/site-theme-gallery";
 import type { SidebarProfile } from "@/components/layout/app-sidebar";
 import type { VocabularyReminder } from "@/lib/data/vocabulary";
 import { LogoMark } from "@/components/shared/logo-mark";
+import { AccountAvatar } from "@/components/shared/account-avatar";
 
 function ReminderBell({ reminder }: { reminder: VocabularyReminder }) {
   const total = reminder.dueTodayCount + reminder.dueTomorrowCount;
@@ -166,12 +167,12 @@ export function TopHeader({
               aria-label="Menu tài khoản"
             >
               <span className="flex size-full items-center justify-center overflow-hidden rounded-full">
-                {profile.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={profile.avatarUrl} alt="" className="size-full object-cover" />
-                ) : (
-                  <UserIcon className="size-4 text-muted-foreground" />
-                )}
+                <AccountAvatar
+                  avatarUrl={profile.avatarUrl}
+                  equippedShopItemId={profile.equippedShopItemId}
+                  size={36}
+                  fallback={<UserIcon className="size-4 text-muted-foreground" />}
+                />
               </span>
               {isPro && (
                 <span
