@@ -36,6 +36,7 @@ export function ExamRunner({ data }: { data: ExamData }) {
   const [submitting, setSubmitting] = React.useState(false);
   const [navigatorOpen, setNavigatorOpen] = React.useState(false);
   const hydratedRef = React.useRef(false);
+  const autoSubmitToastShown = React.useRef(false);
 
   useExamSync(data.attemptId);
   const dictionaryHint = useDictionaryHintTutorial();
@@ -146,9 +147,17 @@ export function ExamRunner({ data }: { data: ExamData }) {
     // store's default 0, which is indistinguishable from "time's up" — that
     // used to auto-submit every fresh attempt within moments of starting it.
     if (!hydrated || data.mode !== "EXAM" || remainingSec > 0 || submitting) return;
-    // Deferred so the state change driving submission isn't set synchronously
-    // within this effect's own execution frame.
-    const timeout = setTimeout(() => void submit(), 0);
+    // A resumed attempt whose real-world time already ran out (started
+    // earlier, tab closed, reopened later) hits this the instant the page
+    // loads — often right as a learner's first tap lands, since that's also
+    // when a slow mobile connection finishes hydrating. Without this notice
+    // the redirect below looked like "I tapped and it ended the exam" instead
+    // of "your exam time was already up."
+    if (!autoSubmitToastShown.current) {
+      autoSubmitToastShown.current = true;
+      toast.warning("Đã hết giờ làm bài — hệ thống tự động nộp bài của bạn.");
+    }
+    const timeout = setTimeout(() => void submit(), 1500);
     return () => clearTimeout(timeout);
   }, [hydrated, remainingSec, data.mode, submitting, submit]);
 
