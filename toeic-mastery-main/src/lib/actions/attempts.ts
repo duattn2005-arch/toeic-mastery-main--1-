@@ -33,7 +33,22 @@ export async function startAttemptAction(testId: string, mode: "PRACTICE" | "EXA
   const existing = await db.attempt.findFirst({
     where: { userId: profile.id, testId, status: "IN_PROGRESS", parts: { equals: normalizedParts } },
   });
-  if (existing) redirect(`/exam/${existing.id}`);
+  if (existing) {
+    // A Practice attempt's countdown is informational only — exam-runner.tsx
+    // never force-submits on it reaching 0 — so silently resuming one whose
+    // real-world clock ran out days ago (abandoned, then "Bắt đầu" clicked
+    // again on the same scope) otherwise permanently greets the learner with
+    // "Hết giờ" despite not having answered a single question this session.
+    // Restarting its clock keeps every answer/currentQuestionIndex intact
+    // (only startedAt moves), unlike discarding it for a brand new attempt.
+    // An EXAM attempt's clock is left alone: it's meant to keep running
+    // whether or not the tab was open, same as a real exam.
+    const isExpired = Date.now() - existing.startedAt.getTime() >= existing.allowedDurationSec * 1000;
+    if (existing.mode === "PRACTICE" && isExpired) {
+      await db.attempt.update({ where: { id: existing.id }, data: { startedAt: new Date() } });
+    }
+    redirect(`/exam/${existing.id}`);
+  }
 
   const test = await db.test.findUniqueOrThrow({ where: { id: testId } });
 
