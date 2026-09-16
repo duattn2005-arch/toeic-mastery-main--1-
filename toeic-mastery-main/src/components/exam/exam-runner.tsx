@@ -65,8 +65,6 @@ export function ExamRunner({ data }: { data: ExamData }) {
   const setAnswer = useExamStore((s) => s.setAnswer);
   const toggleFlag = useExamStore((s) => s.toggleFlag);
   const goTo = useExamStore((s) => s.goTo);
-  const next = useExamStore((s) => s.next);
-  const previous = useExamStore((s) => s.previous);
 
   const currentQuestion = questions[currentIndex];
   const answeredCount = Object.values(answers).filter((a) => a.selectedLabel).length;
@@ -74,15 +72,46 @@ export function ExamRunner({ data }: { data: ExamData }) {
   // Groups consecutive questions sharing one passageId (one shared audio/
   // reading passage) so they can render as a single screen — see
   // group-questions.ts's doc comment for why a plain linear scan is safe.
+  // Every ungrouped question (Part 1/2/5) is its own singleton group, so
+  // "Nhóm" (group) navigation below covers the whole test uniformly instead
+  // of only mattering for Part 3/4/6/7.
   const groups = React.useMemo(() => groupQuestionsByPassage(questions), [questions]);
   const activeGroup = React.useMemo(
     () => groups.find((g) => currentIndex >= g.startIndex && currentIndex < g.startIndex + g.items.length),
     [groups, currentIndex]
   );
+  const groupIndex = activeGroup ? groups.indexOf(activeGroup) : -1;
 
-  // "Câu trước/tiếp" and the navigator both just move the flat currentIndex;
-  // when that lands on a question still inside the group already on screen,
-  // scroll the right-hand list to it instead of re-rendering anything.
+  const goToPrevGroup = React.useCallback(() => {
+    if (groupIndex <= 0) return;
+    goTo(groups[groupIndex - 1].startIndex);
+  }, [groupIndex, groups, goTo]);
+  const goToNextGroup = React.useCallback(() => {
+    if (groupIndex === -1 || groupIndex >= groups.length - 1) return;
+    goTo(groups[groupIndex + 1].startIndex);
+  }, [groupIndex, groups, goTo]);
+
+  // Left/Right arrow keys jump a whole group at a time, matching the "←  →
+  // di chuyển nhanh" hint next to the group counter below. Skipped while
+  // focus is on a form control or a Radix slider thumb (the audio player's
+  // scrub/volume sliders use the same keys to change their own value).
+  React.useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      const target = event.target as HTMLElement | null;
+      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
+      if (target?.closest('[role="slider"]')) return;
+      event.preventDefault();
+      if (event.key === "ArrowLeft") goToPrevGroup();
+      else goToNextGroup();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [goToPrevGroup, goToNextGroup]);
+
+  // The question navigator (Sheet) can jump the flat currentIndex to any
+  // question inside the group already on screen — scroll the right-hand
+  // list to it instead of re-rendering anything.
   React.useEffect(() => {
     if (!currentQuestion || !activeGroup || activeGroup.items.length <= 1) return;
     document.getElementById(`exam-q-${currentQuestion.id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -282,12 +311,18 @@ export function ExamRunner({ data }: { data: ExamData }) {
             />
           )}
 
-        <div className="flex items-center justify-between">
-          <Button variant="outline" onClick={previous} disabled={currentIndex === 0}>
-            <ChevronLeft className="size-4" /> Câu trước
+        <div className="flex items-center justify-between gap-3">
+          <Button variant="outline" onClick={goToPrevGroup} disabled={groupIndex <= 0}>
+            <ChevronLeft className="size-4" /> Nhóm trước
           </Button>
-          <Button onClick={next} disabled={currentIndex === questions.length - 1}>
-            Câu tiếp <ChevronRight className="size-4" />
+          <div className="hidden flex-col items-center text-xs text-muted-foreground sm:flex">
+            <span className="font-medium text-foreground">
+              Nhóm {groupIndex + 1}/{groups.length}
+            </span>
+            <span>← → di chuyển nhanh</span>
+          </div>
+          <Button onClick={goToNextGroup} disabled={groupIndex === -1 || groupIndex >= groups.length - 1}>
+            Nhóm tiếp <ChevronRight className="size-4" />
           </Button>
         </div>
       </div>
