@@ -27,6 +27,11 @@ export function PassageViewer({
    * make them all compete for bandwidth instead of loading any one faster. */
   priority?: boolean;
 }) {
+  // A Part 3/4 listening group with no chart/form image and no transcript
+  // text has nothing for this component to show — rendering the bordered
+  // card anyway left a pointless empty box under the audio player.
+  if (!title && imageUrls.length === 0 && texts.length === 0) return null;
+
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
       {title && <p className="text-sm font-semibold">{title}</p>}

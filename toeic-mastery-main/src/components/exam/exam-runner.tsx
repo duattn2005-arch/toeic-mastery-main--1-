@@ -262,7 +262,7 @@ export function ExamRunner({ data }: { data: ExamData }) {
             <div
               className={cn(
                 "rounded-2xl border border-border bg-card p-5 shadow-soft lg:sticky lg:top-32 lg:shrink-0",
-                passageHasVisualContent ? "lg:w-[75%]" : "lg:w-[38%]"
+                passageHasVisualContent ? "lg:w-[75%]" : "lg:w-[320px]"
               )}
             >
               <p className="mb-3 text-sm font-semibold text-primary">
