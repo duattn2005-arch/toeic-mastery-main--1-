@@ -84,6 +84,12 @@ export function ExamQuestionPanel({
   // parts never do — so this also happens to gate the Listening tour's 3rd
   // step (audio speed control) to real Listening questions only.
   const isListeningQuestion = isAudioOnly || LISTENING_PARTS_WITH_PASSAGE.has(question.part);
+  // A question's own image (Part 1's photo — passage-linked images from
+  // Part 6/7 render elsewhere via PassageStimulus) used to sit full-width
+  // above the answer options, leaving large empty gutters on either side of
+  // a portrait photo. Putting it in its own column next to the options
+  // instead uses that width rather than wasting it.
+  const questionImage = question.imageUrl && !passage?.imageUrls.length ? question.imageUrl : null;
 
   return (
     <div className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-5 shadow-soft sm:p-6">
@@ -108,71 +114,79 @@ export function ExamQuestionPanel({
         <PassageStimulus passage={passage} mode={mode} allowReplay={allowReplay} showAudioTour={isListeningQuestion} />
       )}
 
-      {question.imageUrl && !passage?.imageUrls.length && <ZoomableImage src={question.imageUrl} loading="eager" className="max-h-[80vh]" />}
+      <div className={cn("flex flex-col gap-5", questionImage && "sm:flex-row sm:items-start")}>
+        {questionImage && (
+          <div className="sm:w-2/5 sm:shrink-0 lg:w-1/3">
+            <ZoomableImage src={questionImage} loading="eager" className="max-h-[70vh]" />
+          </div>
+        )}
 
-      {!hideSharedPassage && !passage?.audioUrl && !passage?.transcript && (
-        question.audioUrl ? (
-          <AudioPlayer src={question.audioUrl} allowReplay={mode === "PRACTICE" || allowReplay} tourAnchor={isListeningQuestion} />
-        ) : (
-          question.transcript && (
-            <TtsAudioPlayer text={question.transcript} allowReplay={mode === "PRACTICE" || allowReplay} tourAnchor={isListeningQuestion} />
-          )
-        )
-      )}
+        <div className="flex flex-1 flex-col gap-5">
+          {!hideSharedPassage && !passage?.audioUrl && !passage?.transcript && (
+            question.audioUrl ? (
+              <AudioPlayer src={question.audioUrl} allowReplay={mode === "PRACTICE" || allowReplay} tourAnchor={isListeningQuestion} />
+            ) : (
+              question.transcript && (
+                <TtsAudioPlayer text={question.transcript} allowReplay={mode === "PRACTICE" || allowReplay} tourAnchor={isListeningQuestion} />
+              )
+            )
+          )}
 
-      {!isAudioOnly && <p className="text-sm leading-relaxed">{question.prompt}</p>}
+          {!isAudioOnly && <p className="text-sm leading-relaxed">{question.prompt}</p>}
 
-      <AnswerOptionList
-        options={question.options}
-        selectedLabel={selectedLabel}
-        correctLabel={reveal?.correctLabel ?? null}
-        onSelect={onSelectAnswer}
-        hideText={isAudioOnly && !reveal}
-      />
+          <AnswerOptionList
+            options={question.options}
+            selectedLabel={selectedLabel}
+            correctLabel={reveal?.correctLabel ?? null}
+            onSelect={onSelectAnswer}
+            hideText={isAudioOnly && !reveal}
+          />
 
-      {mode === "PRACTICE" && (
-        <div className="border-t border-border pt-4">
-          {revealError === "LIMIT_REACHED" ? (
-            <div className="flex flex-col items-center gap-2 rounded-xl bg-accent/50 p-4 text-center">
-              <Crown className="size-5 text-primary" />
-              <p className="text-sm font-medium">Nâng cấp tài khoản để tiếp tục xem đáp án</p>
-              <p className="text-xs text-muted-foreground">
-                Bạn đã dùng hết {FREE_ANSWER_REVEALS_PER_PART_PER_DAY} lượt chữa tức thì miễn phí cho{" "}
-                {PART_META[question.part as keyof typeof PART_META].label} hôm nay.
-              </p>
-              <Button asChild size="sm">
-                <Link href="/pricing">Nâng cấp Pro</Link>
-              </Button>
-            </div>
-          ) : !reveal ? (
-            <Button type="button" variant="outline" size="sm" onClick={handleReveal} disabled={revealLoading}>
-              {revealLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Eye className="size-3.5" />}
-              Xem đáp án & giải thích
-            </Button>
-          ) : (
-            <div className="flex flex-col gap-2 rounded-xl bg-accent/50 p-4 text-sm">
-              <p>
-                <span className="font-semibold text-success">Đáp án đúng: {reveal.correctLabel}</span>
-              </p>
-              <p className="text-foreground/90">{reveal.explanationVi}</p>
-              {reveal.transcript && (
-                <details className="mt-1">
-                  <summary className="cursor-pointer text-xs font-medium text-muted-foreground">Xem transcript</summary>
-                  <p className="mt-1.5 whitespace-pre-line text-xs text-muted-foreground">{reveal.transcript}</p>
-                </details>
+          {mode === "PRACTICE" && (
+            <div className="border-t border-border pt-4">
+              {revealError === "LIMIT_REACHED" ? (
+                <div className="flex flex-col items-center gap-2 rounded-xl bg-accent/50 p-4 text-center">
+                  <Crown className="size-5 text-primary" />
+                  <p className="text-sm font-medium">Nâng cấp tài khoản để tiếp tục xem đáp án</p>
+                  <p className="text-xs text-muted-foreground">
+                    Bạn đã dùng hết {FREE_ANSWER_REVEALS_PER_PART_PER_DAY} lượt chữa tức thì miễn phí cho{" "}
+                    {PART_META[question.part as keyof typeof PART_META].label} hôm nay.
+                  </p>
+                  <Button asChild size="sm">
+                    <Link href="/pricing">Nâng cấp Pro</Link>
+                  </Button>
+                </div>
+              ) : !reveal ? (
+                <Button type="button" variant="outline" size="sm" onClick={handleReveal} disabled={revealLoading}>
+                  {revealLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Eye className="size-3.5" />}
+                  Xem đáp án & giải thích
+                </Button>
+              ) : (
+                <div className="flex flex-col gap-2 rounded-xl bg-accent/50 p-4 text-sm">
+                  <p>
+                    <span className="font-semibold text-success">Đáp án đúng: {reveal.correctLabel}</span>
+                  </p>
+                  <p className="text-foreground/90">{reveal.explanationVi}</p>
+                  {reveal.transcript && (
+                    <details className="mt-1">
+                      <summary className="cursor-pointer text-xs font-medium text-muted-foreground">Xem transcript</summary>
+                      <p className="mt-1.5 whitespace-pre-line text-xs text-muted-foreground">{reveal.transcript}</p>
+                    </details>
+                  )}
+                  {reveal.evidenceText && (
+                    <p className="rounded-lg bg-warning/10 p-2 text-xs text-foreground/90">
+                      <span className="font-medium">Bằng chứng: </span>
+                      {reveal.evidenceText}
+                    </p>
+                  )}
+                  <AskMentorButton questionId={question.id} attemptId={attemptId} />
+                </div>
               )}
-              {reveal.evidenceText && (
-                <p className="rounded-lg bg-warning/10 p-2 text-xs text-foreground/90">
-                  <span className="font-medium">Bằng chứng: </span>
-                  {reveal.evidenceText}
-                </p>
-              )}
-              <AskMentorButton questionId={question.id} attemptId={attemptId} />
+              {revealError && revealError !== "LIMIT_REACHED" && <p className="mt-2 text-xs text-destructive">{revealError}</p>}
             </div>
           )}
-          {revealError && revealError !== "LIMIT_REACHED" && <p className="mt-2 text-xs text-destructive">{revealError}</p>}
         </div>
-      )}
+      </div>
 
       {isListeningQuestion && !(hasSharedPassage && hideSharedPassage) && <ListeningAudioTour />}
     </div>
