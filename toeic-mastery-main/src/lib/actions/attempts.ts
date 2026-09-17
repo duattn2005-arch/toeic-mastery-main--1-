@@ -19,8 +19,9 @@ const FREE_PRACTICE_STARTS_PER_DAY = 2;
 
 /** Sorted (TEST_PART_VALUES order) + deduped, so two selections of the same
  * parts in a different click order still compare equal via Prisma's array
- * `equals` filter in the "resume this exact in-progress attempt" lookup
- * below, and so it renders in a stable order anywhere it's displayed. */
+ * `equals` filter in the "abandon the stale in-progress attempt for this
+ * exact scope" lookup below, and so it renders in a stable order anywhere
+ * it's displayed. */
 function normalizeParts(parts: TestPart[]): TestPart[] {
   const unique = Array.from(new Set(parts));
   return TEST_PART_VALUES.filter((p) => unique.includes(p));
@@ -30,17 +31,19 @@ export async function startAttemptAction(testId: string, mode: "PRACTICE" | "EXA
   const profile = await requireUser();
   const normalizedParts = normalizeParts(parts);
 
-  const existing = await db.attempt.findFirst({
+  // "Bắt đầu" always starts a genuinely new attempt: full time, question 1
+  // — not a silent drop back into whatever the same scope (this test + this
+  // exact Parts selection) was left dangling at. Resuming an unfinished
+  // attempt is its own explicit action (the "Tiếp tục làm đề" button on the
+  // test detail page, which links straight to /exam/[attemptId] and never
+  // calls this action at all), so any stale in-progress attempt for this
+  // exact scope is abandoned here rather than reused — also keeps the
+  // invariant every other IN_PROGRESS lookup in this codebase assumes: at
+  // most one live attempt per (user, test, parts) at a time.
+  await db.attempt.updateMany({
     where: { userId: profile.id, testId, status: "IN_PROGRESS", parts: { equals: normalizedParts } },
+    data: { status: "ABANDONED" },
   });
-  if (existing) {
-    // remainingSec is now a paused checkpoint (see getExamData in
-    // src/lib/data/exam.ts) that only drains while the attempt is actually
-    // open — so resuming it here needs no special-casing for a clock that
-    // "ran out" while the tab was closed: there's no such thing anymore.
-    // Every answer/currentQuestionIndex/remainingSec is exactly as left.
-    redirect(`/exam/${existing.id}`);
-  }
 
   const test = await db.test.findUniqueOrThrow({ where: { id: testId } });
 
