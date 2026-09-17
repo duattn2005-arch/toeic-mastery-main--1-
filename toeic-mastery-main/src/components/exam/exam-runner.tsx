@@ -38,7 +38,7 @@ export function ExamRunner({ data }: { data: ExamData }) {
   const hydratedRef = React.useRef(false);
   const autoSubmitToastShown = React.useRef(false);
 
-  useExamSync(data.attemptId);
+  const { flushNow } = useExamSync(data.attemptId);
   const dictionaryHint = useDictionaryHintTutorial();
 
   React.useEffect(() => {
@@ -215,8 +215,13 @@ export function ExamRunner({ data }: { data: ExamData }) {
           {/* Doesn't submit or lose anything — the attempt just stays
              IN_PROGRESS and resumable, same as closing the tab would, but
              a learner who wants to abandon this scope and pick a different
-             Part shouldn't have to rely on the browser back button. */}
-          <Button variant="ghost" size="sm" asChild>
+             Part shouldn't have to rely on the browser back button.
+             flushNow() pushes the exact remainingSec/answers at this instant
+             first — this is an in-app route change, not a real page unload,
+             so neither the periodic sync nor `beforeunload` is guaranteed to
+             have just run, and the timer must resume exactly where this
+             leaves it, not up to SYNC_INTERVAL_MS stale. */}
+          <Button variant="ghost" size="sm" onClick={() => void flushNow()} asChild>
             <Link href={`/practice/${data.testId}`}>
               <LogOut className="size-4" />
               Thoát

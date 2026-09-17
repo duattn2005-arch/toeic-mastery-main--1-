@@ -32,7 +32,11 @@ const SYNC_INTERVAL_MS = 8000;
  * Keeps a full local snapshot on every state change (survives refresh /
  * offline) and periodically pushes unsynced answers to the server whenever
  * the browser is online. Retries automatically on the next interval tick or
- * the `online` event if a push fails.
+ * the `online` event if a push fails. Returns `flushNow` so a caller that's
+ * about to navigate away in-app (e.g. the "Thoát" button — a client-side
+ * route change, so neither the interval nor `beforeunload` is guaranteed to
+ * have just run) can push the exact remainingSec/answers at that instant
+ * instead of leaving up to SYNC_INTERVAL_MS of it unsynced.
  */
 export function useExamSync(attemptId: string) {
   const hydrated = useExamStore((s) => s.hydrated);
@@ -56,47 +60,46 @@ export function useExamSync(attemptId: string) {
     }
   }, [attemptId, hydrated, answers, remainingSec, currentIndex]);
 
+  const flush = React.useCallback(async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+
+    const state = useExamStore.getState();
+    const unsynced = Object.entries(state.answers).filter(([, a]) => !a.isSynced);
+
+    try {
+      const res = await fetch(`/api/attempts/${attemptId}/sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          remainingSec: state.remainingSec,
+          currentQuestionIndex: state.currentIndex,
+          answers: unsynced.map(([questionId, a]) => ({
+            questionId,
+            selectedLabel: a.selectedLabel,
+            isFlagged: a.isFlagged,
+          })),
+        }),
+        keepalive: true,
+      });
+      if (res.ok) {
+        for (const [questionId] of unsynced) markSynced(questionId);
+      }
+    } catch {
+      // Offline or request failed — stays queued, retried on next tick.
+    }
+  }, [attemptId, markSynced]);
+
   React.useEffect(() => {
     if (!hydrated) return;
-    let cancelled = false;
-
-    async function flush() {
-      if (typeof navigator !== "undefined" && !navigator.onLine) return;
-
-      const state = useExamStore.getState();
-      const unsynced = Object.entries(state.answers).filter(([, a]) => !a.isSynced);
-
-      try {
-        const res = await fetch(`/api/attempts/${attemptId}/sync`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            remainingSec: state.remainingSec,
-            currentQuestionIndex: state.currentIndex,
-            answers: unsynced.map(([questionId, a]) => ({
-              questionId,
-              selectedLabel: a.selectedLabel,
-              isFlagged: a.isFlagged,
-            })),
-          }),
-          keepalive: true,
-        });
-        if (res.ok && !cancelled) {
-          for (const [questionId] of unsynced) markSynced(questionId);
-        }
-      } catch {
-        // Offline or request failed — stays queued, retried on next tick.
-      }
-    }
-
     const interval = setInterval(flush, SYNC_INTERVAL_MS);
     window.addEventListener("online", flush);
     window.addEventListener("beforeunload", flush);
     return () => {
-      cancelled = true;
       clearInterval(interval);
       window.removeEventListener("online", flush);
       window.removeEventListener("beforeunload", flush);
     };
-  }, [attemptId, hydrated, markSynced]);
+  }, [hydrated, flush]);
+
+  return { flushNow: flush };
 }

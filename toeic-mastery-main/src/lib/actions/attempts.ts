@@ -34,19 +34,11 @@ export async function startAttemptAction(testId: string, mode: "PRACTICE" | "EXA
     where: { userId: profile.id, testId, status: "IN_PROGRESS", parts: { equals: normalizedParts } },
   });
   if (existing) {
-    // A Practice attempt's countdown is informational only — exam-runner.tsx
-    // never force-submits on it reaching 0 — so silently resuming one whose
-    // real-world clock ran out days ago (abandoned, then "Bắt đầu" clicked
-    // again on the same scope) otherwise permanently greets the learner with
-    // "Hết giờ" despite not having answered a single question this session.
-    // Restarting its clock keeps every answer/currentQuestionIndex intact
-    // (only startedAt moves), unlike discarding it for a brand new attempt.
-    // An EXAM attempt's clock is left alone: it's meant to keep running
-    // whether or not the tab was open, same as a real exam.
-    const isExpired = Date.now() - existing.startedAt.getTime() >= existing.allowedDurationSec * 1000;
-    if (existing.mode === "PRACTICE" && isExpired) {
-      await db.attempt.update({ where: { id: existing.id }, data: { startedAt: new Date() } });
-    }
+    // remainingSec is now a paused checkpoint (see getExamData in
+    // src/lib/data/exam.ts) that only drains while the attempt is actually
+    // open — so resuming it here needs no special-casing for a clock that
+    // "ran out" while the tab was closed: there's no such thing anymore.
+    // Every answer/currentQuestionIndex/remainingSec is exactly as left.
     redirect(`/exam/${existing.id}`);
   }
 

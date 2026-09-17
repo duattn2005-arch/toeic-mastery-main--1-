@@ -36,14 +36,16 @@ export async function getExamData(attemptId: string, userId: string): Promise<Ex
 
   if (!attempt || attempt.userId !== userId) notFound();
 
-  // Derived from the wall-clock elapsed since the attempt actually started,
-  // not the `remainingSec` column — that's only a periodic checkpoint (every
-  // 8s, plus on tab close; see use-exam-sync.ts), so reading it directly
-  // effectively paused the countdown for however long the tab stayed closed:
-  // reopen an attempt hours later and it would resume as if no time had
-  // passed. A real exam clock keeps running whether or not the tab is open.
-  const elapsedSec = Math.max(0, Math.floor((Date.now() - attempt.startedAt.getTime()) / 1000));
-  const remainingSec = attempt.status === "IN_PROGRESS" ? Math.max(0, attempt.allowedDurationSec - elapsedSec) : attempt.remainingSec;
+  // remainingSec is a checkpoint, not a derived value: it only decreases
+  // while the attempt is actually open in a tab (ticked client-side and
+  // flushed to this column every ~8s / on exit — see use-exam-sync.ts), so
+  // reopening an attempt hours after closing the tab resumes with exactly
+  // as much time as was left, instead of the clock having silently drained
+  // in the background. Recomputing it from wall-clock elapsed-since-
+  // startedAt (as this used to do) made the timer run whether or not the
+  // learner was actually present, which is what caused attempts to
+  // auto-submit at 0% after being reopened long after the fact.
+  const remainingSec = attempt.remainingSec;
 
   const [questions, existingAnswers] = await Promise.all([
     db.question.findMany({
