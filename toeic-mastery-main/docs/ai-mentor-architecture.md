@@ -1375,6 +1375,105 @@ qua script) — chỉ cần vài chục câu phủ đủ 16 nhãn là có thể 
 Gate A Test lần đầu, dù chưa đủ 200 câu/15 câu mỗi nhãn để tính phân cấp
 chính thức.
 
+## 12. "Cấp AI" — Tầng xử lý trung tâm xuyên suốt B/I/A
+
+> Trạng thái: **Đề xuất, chờ duyệt.** Chưa viết code/migration cho mục này.
+> Nguồn: tài liệu spec "Cấp AI" anh gửi (2026-09-22) — đây chính là "luồng
+> AI Mentor tổng thể" đã hẹn gửi ở mục 10.5, không phải một cấp độ học thuật
+> thứ 4 sau B/I/A mà là lớp điều phối chạy xuyên suốt cả 3 cấp.
+
+### 12.0 Phần lớn "bộ não" đã có sẵn — Cấp AI chủ yếu là đặt tên + lộ diện lại những gì đang chạy ngầm
+
+Đọc kỹ spec thì thấy điều thú vị: kiến trúc mục 10/11 đã xây **chính xác**
+cỗ máy 3 bước mà spec Cấp AI mô tả (thu thập → chưng cất → định tuyến),
+chỉ khác là đang nằm rải rác dưới nhiều tên hàm khác nhau thay vì một tầng
+gọi tên "AI" thống nhất:
+
+| Khái niệm trong spec Cấp AI | Đã có, tái dùng thẳng |
+|---|---|
+| "Thu thập dữ liệu thô toàn cục" | `AttemptAnswer`/`MentorTestQuestion` đã ghi `selectedLabel`, `isCorrect`, `timeSpentSec`, `initialSelectedLabel`, `answerChangeCount` — đúng "mọi thao tác, thời gian, lịch sử đổi đáp án" spec liệt kê (mục 11.7 đã xác nhận `AttemptAnswer` ghi thật) |
+| "Lọc nhiễu" (đoán mò <8-10s / mất tập trung >2.5 phút) | Đã tính toán sẵn trong `advanced-readiness.ts` (mục 11) dưới dạng `detectAnswerSwitchRisk`/stamina curve; bản thân bộ lọc theo ngưỡng giây thì `evaluateLevelGate`'s comment (mục 11.1 điểm 2 cũ) đã **cố tình tắt** vì lúc viết `timeSpentSec` chưa ghi thật — giờ đã ghi thật (mục 11.7), nên đây là lúc bật lại được, xem mục 12.2 |
+| "Định tuyến: Thăng cấp / Học bù / Giáng cấp" | Chính xác là `evaluateLevelGate()` 3 nhánh `ADVANCE`/`REMEDIATE`/`RESTART` đã code từ mục 10 — spec gọi tên khác (Promote/Remediate/Demote) nhưng cùng một cơ chế |
+| "Nhãn đơn / Nhãn kép" | `SkillDimensionType` (PART/GRAMMAR_TOPIC = đơn, +STRATEGIC_LABEL = kép) — mục 11 đã code |
+| "Bản đồ nhiệt Xanh/Vàng/Đỏ" | Về bản chất đã tồn tại dưới dạng số: `HONG_LABEL_THRESHOLD=0.5` (Đỏ), khoảng 0.5-0.8 (Vàng, `REMEDIATE`), `GATE_PASS_THRESHOLD=0.8` (Xanh) trong `level-gate.ts` — nhưng **chưa có API/UI nào lộ diện toàn bộ bản đồ này ra ngoài**, chỉ dùng nội bộ lúc chấm Gate Test. Xem mục 12.1. |
+| "Hồ sơ bàn giao xuyên cấp, không phải làm lại bài đánh giá" | `MentorMemory.summary` + `recordLevelAdvance()` đã làm đúng việc này cho B→I và I→A (mục 10.7, 11.4) |
+| "Sinh bài tập khớp đúng nhãn hổng, không bắt học lại toàn bộ" | `generateRemediationTest()` (mục 10.7) — đúng triết lý, đã chạy |
+| "Độ chín dữ liệu tối thiểu trước khi phán quyết" | `isEligibleForLevelGate()` — đã có (100-200 câu tổng + 10-15 câu/nhãn tùy cấp) |
+| "Tính điểm năng lực có trọng số tốc độ, không phải trung bình cộng đơn thuần" | **CHƯA có** — `SkillMastery.masteryScore` hiện chỉ là EWMA của đúng/sai, không cộng điểm thưởng tốc độ hay trừ điểm bẫy tâm lý. Đây là điểm khác biệt thật sự cần code mới — xem mục 12.1. |
+
+### 12.1 Cái thực sự còn thiếu
+
+1. **Công thức điểm năng lực có trọng số** ("% chính xác + điểm thưởng tốc
+   độ - trọng số bẫy tâm lý") — `SkillMastery` hiện là EWMA thuần đúng/sai.
+   Cần quyết định công thức cụ thể trước khi code (mục 12.2).
+2. **API/UI lộ diện "Bản đồ nhiệt"** — dữ liệu Xanh/Vàng/Đỏ theo từng nhãn
+   đã tính được (từ `SkillMastery` + ngưỡng có sẵn) nhưng chưa có endpoint
+   nào trả về toàn bộ bản đồ cho mọi nhãn cùng lúc (hiện chỉ tính lẻ tẻ khi
+   chấm 1 bài cụ thể). Cần 1 hàm mới `buildCompetencyHeatmap(userId)` +
+   route mới.
+3. **Định tuyến giao diện động (Dynamic UI Routing)** — "ẩn bài Part 1/2,
+   lấp đầy màn hình bằng Part 7 nếu yếu Part 7" là thay đổi UI thật (không
+   chỉ dữ liệu), chưa có ở đâu trong Dashboard hiện tại. `recommendation.ts`
+   (dashboard) hiện chỉ **gợi ý thêm 1-2 card**, không **ẩn** nội dung khác.
+4. **Coaching thời gian thực trong lúc làm bài** (pop-up "bạn đang mất 95s/
+   câu Part 5") — cần theo dõi tốc độ đang làm ngay trong `exam-runner.tsx`/
+   `exam-store.ts` và so với ngưỡng mục tiêu, bắn cảnh báo giữa chừng. Đây
+   là tương tác UI hoàn toàn mới, khác các cảnh báo hiện có (vốn chỉ hiện
+   sau khi nộp bài).
+5. **Phễu thương mại (Commercial Triggers)** — kiểm tra thật: `PlanTier`
+   (FREE/PRO) tồn tại trong schema nhưng **không được dùng ở bất kỳ đâu
+   trong `src/`** (grep xác nhận, chỉ xuất hiện trong code Prisma tự sinh).
+   `rate-limit.ts` cũng hoàn toàn generic, không có khái niệm PlanTier gắn
+   sẵn. Nghĩa là **chưa hề có cơ chế Premium/thanh toán nào đang chạy thật**
+   trong ứng dụng — xây "mồi nhử mở khóa Premium" lúc này sẽ là hứa hẹn một
+   tính năng chưa tồn tại. Đây là điểm cần anh xác nhận rõ nhất trước khi
+   động vào, xem mục 12.2.
+6. **Hồ sơ bàn giao dạng JSON có cấu trúc thật** (không phải text nối vào
+   `MentorMemory.summary` như hiện tại) — đã nêu là thiếu ở mục 11.5, vẫn
+   đúng cho Cấp AI.
+
+### 12.2 Cần anh chốt trước khi viết migration/code thật
+
+1. **Công thức điểm trọng số** — spec chỉ mô tả bằng lời ("điểm thưởng tốc
+   độ", "trừ điểm bẫy tâm lý"), chưa cho công thức số cụ thể. Mình đề xuất:
+   giữ nguyên `SkillMastery.masteryScore` (EWMA đúng/sai) làm điểm **nền**
+   như hiện tại — không đổi để tránh phá vỡ mọi nơi đang đọc số này
+   (`getWeakestDimensions`, `evaluateLevelGate`,...) — và thêm một trường
+   **mới**, riêng biệt (`weightedScore` hoặc tính runtime, không lưu DB) chỉ
+   dùng cho "bản đồ nhiệt"/coaching, không thay thế `masteryScore`. Anh xác
+   nhận hướng "thêm lớp mới, không sửa lớp cũ" này được không?
+2. **Bật lại bộ lọc nhiễu thời gian** — giờ `timeSpentSec` đã ghi thật cho
+   luyện tập thường (mục 11.7), có nên bật bộ lọc "<8-10s loại bỏ, >2.5
+   phút loại bỏ" khi tính `weightedScore`/bản đồ nhiệt không? Việc gate
+   B→I/I→A (`evaluateLevelGate`) có nên dùng luôn bộ lọc này không, hay giữ
+   nguyên như đã chốt ở mục 10.2 (không lọc)? Mình đề xuất: áp dụng lọc cho
+   bản đồ nhiệt (feature mới, không rủi ro phá dữ liệu cũ) nhưng **giữ
+   nguyên** `evaluateLevelGate` không lọc (đã chốt, không đổi hành vi đang
+   chạy nếu không anh yêu cầu).
+3. **Phễu thương mại — cần xác nhận rõ nhất**: anh có muốn build tính năng
+   Premium/thanh toán thật (PlanTier gating thật) trước, hay chỉ muốn AI
+   Mentor **hiển thị lời mời nâng cấp** như một thông điệp marketing (chưa
+   cần cơ chế thanh toán/khóa tính năng thật đứng sau)? Hai việc này khác
+   nhau hoàn toàn về khối lượng code (một cái là UI text, một cái là cả hệ
+   thống thanh toán + gating). Mình sẽ không tự ý code phần này cho tới khi
+   anh chọn rõ hướng.
+4. **Mức độ "ẩn" nội dung trong Dynamic UI Routing** — ẩn hẳn Part 1/2 khỏi
+   Dashboard nếu học viên yếu Part 7 có thể gây khó chịu (học viên có thể
+   vẫn muốn tự luyện Part mình thích). Mình đề xuất **sắp xếp lại thứ tự ưu
+   tiên** (đẩy Part yếu lên đầu, không xóa hẳn Part khác) thay vì ẩn hoàn
+   toàn — anh xác nhận hướng này hay đúng ý muốn ẩn hẳn như spec viết.
+
+### 12.3 Chưa làm gì ở phần schema/code cho mục 12 này
+
+Giữ đúng thói quen đã thống nhất — mục 12 dừng ở mức phân tích, chưa có
+migration/code mới. Khi anh chốt các điểm ở mục 12.2, việc code thực ra sẽ
+nhỏ hơn nhìn qua tưởng: phần lớn hạ tầng (routing 3 nhánh, nhãn đơn/kép, độ
+chín dữ liệu, hồ sơ bàn giao) đã chạy từ mục 10-11; việc mới chủ yếu là (a)
+công thức điểm trọng số mới, (b) 1 endpoint lộ diện bản đồ nhiệt, và (c) 2
+tính năng UI thật sự mới (routing động + coaching thời gian thực) — phễu
+thương mại thì cần anh chốt hướng trước tiên vì chưa có hạ tầng thanh toán
+thật đứng sau.
+
 ### 11.6 Anh nói "chạy tiếp" — đã gắn nhãn thật cho seed-data (2026-09-22)
 
 Đọc lại toàn bộ `prisma/seed-data/part7.ts` (58 câu) và `part3.ts` (12 hội
