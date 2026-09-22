@@ -1,6 +1,5 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { WEAK_THRESHOLD } from "./skill-mastery";
 import { RECENT_EXCLUSION_DAYS, shuffle } from "./mentor-test-generator";
 import { TEST_PARTS } from "@/lib/constants/toeic";
 import type { Prisma } from "@/generated/prisma/client";
@@ -32,22 +31,59 @@ const GATE_PASS_THRESHOLD = 0.8;
 const GATE_RESTART_THRESHOLD = 0.5;
 const REMEDIATE_MAX_LABELS = 3;
 const GATE_QUESTIONS_PER_LABEL = 3;
+/**
+ * "Hổng" cutoff for a single label — sourced straight from the B/I PDF docs
+ * (Cấp B mục 4's "Đạt ≥70% / Cận đạt 50-69% / Hổng <50%" table, and Cấp I
+ * mục V's own "Không có nhãn nào < 50%" line), NOT skill-mastery.ts's
+ * WEAK_THRESHOLD=0.6 — that constant is a different, unrelated bar used by
+ * recommendation.ts/learning-path-generator.ts for "worth recommending
+ * practice on", and changing it would ripple into those features too.
+ * Level-gate/remediation logic uses this dedicated constant so the actual
+ * B→I/I→A transition math matches the source docs' numbers exactly
+ * (2026-09-22).
+ */
+const HONG_LABEL_THRESHOLD = 0.5;
+/** Cấp I mục V's "Đạt chuẩn lên A" table — Placement test ≥80% and Gate
+ * Test I ≥80% (already GATE_PASS_THRESHOLD). Only re-checked for the I→A
+ * transition; Cấp B's own table has no placement re-check. */
+const ADVANCED_PLACEMENT_THRESHOLD = 0.8;
+/** Both B and I docs' "từ vựng đã nhớ ≥70%" condition — re-checked for
+ * every ADVANCE branch (B→I and I→A alike). */
+const VOCAB_MASTERY_THRESHOLD = 0.7;
+/** Extra "ôn tập tổng quát" questions a remediation test tops up with, spread
+ * across core labels OTHER than the ones actually weak — so học bù never
+ * feels like being locked into a single Part/topic forever (2026-09-22). */
+const REMEDIATION_EXTRA_REVIEW_COUNT = 4;
+
+/**
+ * Beginner's core Parts — a Gate Test that decides "lên cấp I hay không"
+ * must actually include listening (ảnh + audio hỏi-đáp) and not just
+ * Part 5/6-flavored grammar topics, or it's grading readiness on content
+ * the learner may never have practiced. Deliberately NOT all 7 — Cấp B is
+ * foundation-only (photos, short Q&A, single-sentence grammar); Part 3/4/7
+ * stay reserved for the fuller Intermediate→Advanced gate below
+ * (2026-09-22 discussion).
+ */
+const BEGINNER_CORE_PARTS: TestPart[] = ["PART1", "PART2", "PART5"];
 
 /**
  * Core labels a level's Gate Test/eligibility bar is measured against —
- * decided in docs/ai-mentor-architecture.md mục 10.6 điểm 3: Beginner's are
- * every seeded GrammarTopic; Intermediate's are every TestPart PLUS the
- * same GrammarTopic set. (The spec's "Part 5 - Mệnh đề quan hệ" style
- * Part×Topic cross isn't trackable yet — SkillMastery has no composite
- * PART+GRAMMAR_TOPIC dimension — so Intermediate widens Beginner's per-topic
- * bar to per-topic AND per-part instead of narrowing to a cross. Revisit if
- * a real PART+GRAMMAR_TOPIC dimension gets added later.)
+ * decided in docs/ai-mentor-architecture.md mục 10.6 điểm 3, refined
+ * 2026-09-22: Beginner's are BEGINNER_CORE_PARTS + every seeded
+ * GrammarTopic; Intermediate's (i.e. the gate up to Cấp A, the highest
+ * level) are every TestPart PLUS the same GrammarTopic set — Cấp A is
+ * meant to require full-part coverage, Cấp B only its foundation subset.
+ * (The spec's "Part 5 - Mệnh đề quan hệ" style Part×Topic cross isn't
+ * trackable yet — SkillMastery has no composite PART+GRAMMAR_TOPIC
+ * dimension — so each level just widens its per-topic bar with a separate
+ * per-part bar instead of narrowing to a cross. Revisit if a real
+ * PART+GRAMMAR_TOPIC dimension gets added later.)
  */
 export async function getCoreLabels(level: GateableLevel): Promise<CoreLabel[]> {
   const topics = await db.grammarTopic.findMany({ select: { slug: true }, orderBy: { orderIndex: "asc" } });
   const grammarLabels: CoreLabel[] = topics.map((t) => ({ dimensionType: "GRAMMAR_TOPIC" as const, dimensionKey: t.slug }));
-  if (level === "BEGINNER") return grammarLabels;
-  const partLabels: CoreLabel[] = TEST_PARTS.map((p) => ({ dimensionType: "PART" as const, dimensionKey: p }));
+  const parts = level === "BEGINNER" ? BEGINNER_CORE_PARTS : TEST_PARTS;
+  const partLabels: CoreLabel[] = parts.map((p) => ({ dimensionType: "PART" as const, dimensionKey: p }));
   return [...partLabels, ...grammarLabels];
 }
 
@@ -115,32 +151,8 @@ export async function generateLevelGateTest(params: {
 
   const targetLevel = GATE_TARGET_LEVEL[params.currentLevel];
   const labels = await getCoreLabels(params.currentLevel);
-
-  const recentlySeenCutoff = new Date(Date.now() - RECENT_EXCLUSION_DAYS * 24 * 60 * 60 * 1000);
-  const recentlySeen = await db.attemptAnswer.findMany({
-    where: { attempt: { userId: params.userId }, answeredAt: { gte: recentlySeenCutoff } },
-    select: { questionId: true },
-  });
-  const excludeIds = recentlySeen.map((r) => r.questionId);
-  const excludeFilter = excludeIds.length > 0 ? { id: { notIn: excludeIds } } : {};
-
-  const selectedIds: string[] = [];
-  const seen = new Set<string>();
-  for (const label of labels) {
-    const where: Prisma.QuestionWhereInput = {
-      status: "PUBLISHED",
-      ...excludeFilter,
-      ...(label.dimensionType === "PART" ? { part: label.dimensionKey as TestPart } : { grammarTopicSlug: label.dimensionKey }),
-    };
-    const candidates = await db.question.findMany({ where, select: { id: true }, take: GATE_QUESTIONS_PER_LABEL * 3 });
-    const picked = shuffle(candidates).slice(0, Math.min(GATE_QUESTIONS_PER_LABEL, candidates.length));
-    for (const q of picked) {
-      if (!seen.has(q.id)) {
-        seen.add(q.id);
-        selectedIds.push(q.id);
-      }
-    }
-  }
+  const excludeFilter = excludeIdsFilter(await recentlySeenIds(params.userId));
+  const selectedIds = await pickQuestionsForLabels(labels, excludeFilter, GATE_QUESTIONS_PER_LABEL);
 
   if (selectedIds.length === 0) {
     throw new LevelGateUnavailableError("Ngân hàng câu hỏi hiện chưa đủ nội dung để tạo Gate Test cho cấp độ này.");
@@ -162,6 +174,147 @@ export async function generateLevelGateTest(params: {
   return { mentorTestId: mentorTest.id, questionCount: selectedIds.length, targetLevel };
 }
 
+/** Shared by generateLevelGateTest/generateRemediationTest — never resurface
+ * a question the learner answered in the last RECENT_EXCLUSION_DAYS days. */
+async function recentlySeenIds(userId: string): Promise<string[]> {
+  const recentlySeenCutoff = new Date(Date.now() - RECENT_EXCLUSION_DAYS * 24 * 60 * 60 * 1000);
+  const recentlySeen = await db.attemptAnswer.findMany({
+    where: { attempt: { userId }, answeredAt: { gte: recentlySeenCutoff } },
+    select: { questionId: true },
+  });
+  return recentlySeen.map((r) => r.questionId);
+}
+
+function excludeIdsFilter(ids: string[]): Prisma.QuestionWhereInput {
+  return ids.length > 0 ? { id: { notIn: ids } } : {};
+}
+
+function questionWhereForLabel(label: CoreLabel, excludeFilter: Prisma.QuestionWhereInput): Prisma.QuestionWhereInput {
+  // NOTE: STRATEGIC_LABEL (Cấp A) filtering is added alongside
+  // Question.strategicLabelSlugs — see the "Cấp A nhãn chiến lược" schema
+  // addition in this same change; getCoreLabels only ever returns PART/
+  // GRAMMAR_TOPIC labels until then, so this never sees that branch early.
+  const labelFilter: Prisma.QuestionWhereInput =
+    label.dimensionType === "PART"
+      ? { part: label.dimensionKey as TestPart }
+      : label.dimensionType === "GRAMMAR_TOPIC"
+        ? { grammarTopicSlug: label.dimensionKey }
+        : { strategicLabelSlugs: { has: label.dimensionKey } };
+  return { status: "PUBLISHED", ...excludeFilter, ...labelFilter };
+}
+
+/** Pools up to `perLabel` questions for each label (deduped across labels)
+ * — the shared curation loop behind both the Gate Test itself and its
+ * follow-up remediation test. */
+async function pickQuestionsForLabels(labels: CoreLabel[], excludeFilter: Prisma.QuestionWhereInput, perLabel: number): Promise<string[]> {
+  const selectedIds: string[] = [];
+  const seen = new Set<string>();
+  for (const label of labels) {
+    const where = questionWhereForLabel(label, excludeFilter);
+    const candidates = await db.question.findMany({ where, select: { id: true }, take: perLabel * 3 });
+    const picked = shuffle(candidates).slice(0, Math.min(perLabel, candidates.length));
+    for (const q of picked) {
+      if (!seen.has(q.id)) {
+        seen.add(q.id);
+        selectedIds.push(q.id);
+      }
+    }
+  }
+  return selectedIds;
+}
+
+/**
+ * "Học bù" (mục 4 trong docs/ai-mentor-architecture.md's PDF nguồn) — after
+ * a REMEDIATE/RESTART LEVEL_GATE result, auto-curates ONE follow-up
+ * MentorTest pooled across the weak/hổng labels the gate just found (never
+ * more than REMEDIATE_MAX_LABELS worth, whatever the caller passes in),
+ * linked back to the gate it followed via sourceLevelGateTestId so the UI
+ * can offer "làm lại Gate Test" once gradeRemediationTest says every label
+ * cleared. Called right from the gate's own submit route — the learner
+ * never has to ask for this separately.
+ *
+ * On top of the focused weak-label questions, tops up with
+ * REMEDIATION_EXTRA_REVIEW_COUNT quick review questions spread across the
+ * level's OTHER core labels — học bù stays targeted at what's actually
+ * broken, but never leaves the learner drilling a single Part/topic in
+ * isolation for the whole session (2026-09-22 discussion). Those review
+ * questions are NOT required to clear HONG_LABEL_THRESHOLD — see
+ * gradeRemediationTest's `targetLabels` param.
+ */
+export async function generateRemediationTest(params: {
+  userId: string;
+  sourceLevelGateTestId: string;
+  fromLevel: GateableLevel;
+  toLevel: MentorLevel;
+  labels: CoreLabel[];
+  conversationId?: string;
+}): Promise<{ mentorTestId: string; questionCount: number } | null> {
+  if (params.labels.length === 0) return null;
+
+  const baseExcludeIds = await recentlySeenIds(params.userId);
+  const focusedIds = await pickQuestionsForLabels(params.labels, excludeIdsFilter(baseExcludeIds), GATE_QUESTIONS_PER_LABEL);
+
+  const targetKeys = new Set(params.labels.map((l) => `${l.dimensionType}:${l.dimensionKey}`));
+  const allCoreLabels = await getCoreLabels(params.fromLevel);
+  const reviewLabelPool = shuffle(allCoreLabels.filter((l) => !targetKeys.has(`${l.dimensionType}:${l.dimensionKey}`)));
+
+  const reviewIds: string[] = [];
+  for (const label of reviewLabelPool) {
+    if (reviewIds.length >= REMEDIATION_EXTRA_REVIEW_COUNT) break;
+    const where = questionWhereForLabel(label, excludeIdsFilter([...baseExcludeIds, ...focusedIds, ...reviewIds]));
+    const candidates = await db.question.findMany({ where, select: { id: true }, take: 3 });
+    const picked = shuffle(candidates)[0];
+    if (picked) reviewIds.push(picked.id);
+  }
+
+  const selectedIds = [...focusedIds, ...reviewIds];
+  if (selectedIds.length === 0) return null;
+
+  const mentorTest = await db.mentorTest.create({
+    data: {
+      userId: params.userId,
+      conversationId: params.conversationId,
+      dimensionType: "REMEDIATION",
+      dimensionKey: `${params.fromLevel}->${params.toLevel}`,
+      difficulty: "MEDIUM",
+      passThreshold: HONG_LABEL_THRESHOLD,
+      remediationLabels: params.labels as unknown as Prisma.InputJsonValue,
+      sourceLevelGateTestId: params.sourceLevelGateTestId,
+      questions: { create: selectedIds.map((id, index) => ({ questionId: id, orderIndex: index })) },
+    },
+    select: { id: true },
+  });
+
+  return { mentorTestId: mentorTest.id, questionCount: selectedIds.length };
+}
+
+export interface RemediationLabelResult extends LevelGateLabelScore {
+  cleared: boolean;
+}
+
+export interface RemediationResult {
+  labelResults: RemediationLabelResult[];
+  allCleared: boolean;
+}
+
+/**
+ * Grades a REMEDIATION MentorTest per-label (not one overall pass/fail) —
+ * a label counts as "đã bù" once its score on this follow-up test clears
+ * HONG_LABEL_THRESHOLD, the same "Hổng" bar evaluateLevelGate uses.
+ * `labelResults` covers every label present in
+ * the submission (including the bonus review questions' labels, so the UI
+ * can show "ôn thêm Part X: 100%"), but `allCleared` only requires the
+ * originally-targeted `targetLabels` (from MentorTest.remediationLabels) to
+ * clear — a review question going wrong must never block retaking the Gate
+ * Test.
+ */
+export function gradeRemediationTest(graded: GradedGateQuestion[], targetLabels: CoreLabel[]): RemediationResult {
+  const labelResults = scoreByLabel(graded).map((l) => ({ ...l, cleared: l.score >= HONG_LABEL_THRESHOLD }));
+  const targetKeys = new Set(targetLabels.map((l) => `${l.dimensionType}:${l.dimensionKey}`));
+  const targetResults = labelResults.filter((l) => targetKeys.has(`${l.dimensionType}:${l.dimensionKey}`));
+  return { labelResults, allCleared: targetResults.length > 0 && targetResults.every((l) => l.cleared) };
+}
+
 export type LevelGateBranch = "ADVANCE" | "REMEDIATE" | "RESTART";
 
 export interface LevelGateLabelScore extends CoreLabel {
@@ -176,8 +329,43 @@ export interface LevelGateResult {
   labelScores: LevelGateLabelScore[];
   /** REMEDIATE only — top 1-3 weakest labels to học bù trước khi thi lại. */
   weakLabels: LevelGateLabelScore[];
-  /** RESTART only — every "Hổng" (score < WEAK_THRESHOLD) label. */
+  /** RESTART only — every "Hổng" (score < HONG_LABEL_THRESHOLD) label. */
   hongLabels: LevelGateLabelScore[];
+}
+
+export interface GradedGateQuestion {
+  part: TestPart;
+  grammarTopicSlug: string | null;
+  /** Cấp A "nhãn kép" — strategic labels this question was tagged with, on
+   * top of its PART/GRAMMAR_TOPIC label (see StrategicLabel). Empty/absent
+   * for B→I gating, where no question carries a strategic label yet. */
+  strategicLabelSlugs?: string[];
+  isCorrect: boolean;
+}
+
+/**
+ * Buckets graded gate questions by every label they carry (PART always,
+ * GRAMMAR_TOPIC/STRATEGIC_LABEL when present) and scores each bucket —
+ * shared by evaluateLevelGate (whole-gate ADVANCE/REMEDIATE/RESTART call)
+ * and gradeRemediationTest (per-label "đã bù chưa" check on a follow-up
+ * test), so the two never disagree on how a label's score is computed.
+ */
+export function scoreByLabel(graded: GradedGateQuestion[]): LevelGateLabelScore[] {
+  const byLabel = new Map<string, LevelGateLabelScore>();
+  const bump = (dimensionType: SkillDimensionType, dimensionKey: string, isCorrect: boolean) => {
+    const key = `${dimensionType}:${dimensionKey}`;
+    const entry = byLabel.get(key) ?? { dimensionType, dimensionKey, correct: 0, total: 0, score: 0 };
+    entry.total += 1;
+    if (isCorrect) entry.correct += 1;
+    entry.score = entry.correct / entry.total;
+    byLabel.set(key, entry);
+  };
+  for (const g of graded) {
+    bump("PART", g.part, g.isCorrect);
+    if (g.grammarTopicSlug) bump("GRAMMAR_TOPIC", g.grammarTopicSlug, g.isCorrect);
+    for (const slug of g.strategicLabelSlugs ?? []) bump("STRATEGIC_LABEL", slug, g.isCorrect);
+  }
+  return [...byLabel.values()];
 }
 
 /**
@@ -192,29 +380,13 @@ export interface LevelGateResult {
  * loại bỏ toàn bộ dữ liệu chứ không phải "nhiễu". Bỏ qua bước lọc cho tới
  * khi có một luồng ghi timeSpentSec thật.
  */
-export function evaluateLevelGate(
-  graded: { part: TestPart; grammarTopicSlug: string | null; isCorrect: boolean }[]
-): LevelGateResult {
+export function evaluateLevelGate(graded: GradedGateQuestion[]): LevelGateResult {
   const totalCount = graded.length;
   const correctCount = graded.filter((g) => g.isCorrect).length;
   const overallScore = totalCount > 0 ? correctCount / totalCount : 0;
 
-  const byLabel = new Map<string, LevelGateLabelScore>();
-  const bump = (dimensionType: SkillDimensionType, dimensionKey: string, isCorrect: boolean) => {
-    const key = `${dimensionType}:${dimensionKey}`;
-    const entry = byLabel.get(key) ?? { dimensionType, dimensionKey, correct: 0, total: 0, score: 0 };
-    entry.total += 1;
-    if (isCorrect) entry.correct += 1;
-    entry.score = entry.correct / entry.total;
-    byLabel.set(key, entry);
-  };
-  for (const g of graded) {
-    bump("PART", g.part, g.isCorrect);
-    if (g.grammarTopicSlug) bump("GRAMMAR_TOPIC", g.grammarTopicSlug, g.isCorrect);
-  }
-
-  const labelScores = [...byLabel.values()];
-  const weakSorted = labelScores.filter((l) => l.score < WEAK_THRESHOLD).sort((a, b) => a.score - b.score);
+  const labelScores = scoreByLabel(graded);
+  const weakSorted = labelScores.filter((l) => l.score < HONG_LABEL_THRESHOLD).sort((a, b) => a.score - b.score);
 
   // "≥80% và không nhãn nào Hổng" -> lên cấp. Nếu đạt ≥80% tổng nhưng vẫn
   // còn nhãn Hổng, spec gốc không nói rõ — xử lý như REMEDIATE (không lên
@@ -234,6 +406,66 @@ export function evaluateLevelGate(
   };
 }
 
+export interface ExtraAdvanceRequirements {
+  vocabRate: number;
+  vocabOk: boolean;
+  /** null when not applicable to this transition (only Cấp I's "Đạt chuẩn
+   * lên A" table re-checks placement; Cấp B's own table doesn't). */
+  placementScore: number | null;
+  placementOk: boolean | null;
+  /** True only when every applicable condition holds — the gate the
+   * submit route ANDs onto evaluateLevelGate's own ADVANCE branch. */
+  allOk: boolean;
+}
+
+/** % of this learner's tracked vocabulary marked as learned — the "từ vựng
+ * đã nhớ" condition both B and I PDF docs require for their ADVANCE branch
+ * (page 4's B→I table and mục V's I→A table alike). No vocabulary tracked
+ * at all counts as 0%, not "not applicable" — "đã nhớ 70%" can't be true of
+ * nothing. */
+async function getVocabularyMasteryRate(userId: string): Promise<number> {
+  const [total, learned] = await Promise.all([
+    db.userVocabulary.count({ where: { userId } }),
+    db.userVocabulary.count({ where: { userId, isLearned: true } }),
+  ]);
+  return total > 0 ? learned / total : 0;
+}
+
+/** Most recent completed PLACEMENT MentorTest's score (0-1) — placement
+ * tests have no real pass/fail bar (passThreshold: 0, see
+ * generatePlacementTest) so `completedAt` alone marks "done", not status. */
+async function getLatestPlacementScore(userId: string): Promise<number | null> {
+  const test = await db.mentorTest.findFirst({
+    where: { userId, dimensionType: "PLACEMENT", completedAt: { not: null } },
+    orderBy: { completedAt: "desc" },
+    select: { score: true },
+  });
+  return test?.score ?? null;
+}
+
+/**
+ * The extra conditions the B/I PDF docs list alongside the Gate Test score
+ * itself for an ADVANCE branch to actually count — see mục 10.2 discussion
+ * 2026-09-22: Cấp B's own table requires "từ vựng đã nhớ ≥70%" on top of
+ * the Gate Test result, and Cấp I's "Đạt chuẩn lên A" table additionally
+ * requires "Placement test ≥80%". evaluateLevelGate itself stays a pure,
+ * synchronous function (fed one already-graded Gate Test); this is the
+ * async DB-backed half the submit route ANDs onto its ADVANCE branch
+ * before actually calling recordLevelAdvance.
+ */
+export async function checkExtraAdvanceRequirements(userId: string, targetLevel: MentorLevel): Promise<ExtraAdvanceRequirements> {
+  const vocabRate = await getVocabularyMasteryRate(userId);
+  const vocabOk = vocabRate >= VOCAB_MASTERY_THRESHOLD;
+
+  if (targetLevel !== "ADVANCED") {
+    return { vocabRate, vocabOk, placementScore: null, placementOk: null, allOk: vocabOk };
+  }
+
+  const placementScore = await getLatestPlacementScore(userId);
+  const placementOk = placementScore !== null && placementScore >= ADVANCED_PLACEMENT_THRESHOLD;
+  return { vocabRate, vocabOk, placementScore, placementOk, allOk: vocabOk && placementOk };
+}
+
 /**
  * ADVANCE side-effect: bumps mentorLevel and appends a short "hồ sơ bàn
  * giao" to MentorMemory so the next level's chat context already knows
@@ -251,7 +483,7 @@ export async function recordLevelAdvance(params: {
 }): Promise<void> {
   await db.profile.update({ where: { id: params.userId }, data: { mentorLevel: params.toLevel } });
 
-  const stillWeak = [...params.labelScores].filter((l) => l.score < WEAK_THRESHOLD).sort((a, b) => a.score - b.score).slice(0, 3);
+  const stillWeak = [...params.labelScores].filter((l) => l.score < HONG_LABEL_THRESHOLD).sort((a, b) => a.score - b.score).slice(0, 3);
   const weakText =
     stillWeak.length > 0
       ? `Còn hơi yếu ở: ${stillWeak.map((l) => `${l.dimensionKey} (${Math.round(l.score * 100)}%)`).join(", ")}.`

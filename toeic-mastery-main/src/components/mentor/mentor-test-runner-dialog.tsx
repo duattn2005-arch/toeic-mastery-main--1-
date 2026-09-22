@@ -51,7 +51,27 @@ interface SubmitResult {
   totalCount: number;
   estimatedScore: { listening: number; reading: number; total: number } | null;
   onboardingCompleted: boolean;
-  levelGate: { branch: "ADVANCE" | "REMEDIATE" | "RESTART"; fromLevel: string; toLevel: string; weakLabels: string[]; hongLabels: string[] } | null;
+  levelGate:
+    | {
+        branch: "ADVANCE" | "REMEDIATE" | "RESTART";
+        fromLevel: string;
+        toLevel: string;
+        weakLabels: string[];
+        hongLabels: string[];
+        /** REMEDIATE/RESTART only — the auto-curated "học bù" MentorTest
+         * already sitting ready to go, see generateRemediationTest. */
+        remediationTestId: string | null;
+        /** Set only when the Gate Test score itself was ADVANCE-worthy but
+         * got downgraded to REMEDIATE for not meeting the B/I PDF docs'
+         * extra "từ vựng đã nhớ ≥70%" / (I→A only) "Placement test ≥80%"
+         * conditions — see checkExtraAdvanceRequirements. */
+        extraRequirements: { vocabRate: number; vocabOk: boolean; placementScore: number | null; placementOk: boolean | null; allOk: boolean } | null;
+      }
+    | null;
+  /** Set only when this MentorTest's dimensionType is REMEDIATION — see
+   * gradeRemediationTest. allCleared means every originally-weak label is
+   * now above WEAK_THRESHOLD, so it's worth trying the Gate Test again. */
+  remediation: { labelResults: { dimensionKey: string; score: number; cleared: boolean }[]; allCleared: boolean } | null;
 }
 
 /** Consecutive questions sharing one Passage (Part 3/4/6/7's shared
@@ -93,6 +113,7 @@ export function MentorTestRunnerDialog({
   open,
   onOpenChange,
   onPassed,
+  onStartRemediation,
 }: {
   mentorTestId: string;
   open: boolean;
@@ -102,6 +123,12 @@ export function MentorTestRunnerDialog({
    * result must never trigger (see mentor-test-runner-dialog.tsx's own
    * copy about asking the mentor for another attempt instead). */
   onPassed?: () => void;
+  /** LEVEL_GATE only — fired when the learner clicks "Làm bài học bù ngay"
+   * on a REMEDIATE/RESTART result, with the already-curated
+   * remediationTestId from generateRemediationTest. The caller (see
+   * MentorLevelGateCard) is expected to close this dialog and open a new
+   * one for that id. */
+  onStartRemediation?: (remediationTestId: string) => void;
 }) {
   const queryClient = useQueryClient();
   const [answers, setAnswers] = React.useState<Record<string, string>>({});
@@ -131,6 +158,7 @@ export function MentorTestRunnerDialog({
   const alreadyGraded = test?.status === "PASSED" || test?.status === "FAILED";
   const isPlacement = test?.dimensionType === "PLACEMENT";
   const isLevelGate = test?.dimensionType === "LEVEL_GATE";
+  const isRemediation = test?.dimensionType === "REMEDIATION";
   const groups = React.useMemo(() => (test ? groupQuestions(test.questions) : []), [test]);
   const questionIndex = React.useMemo(() => new Map(test?.questions.map((q, i) => [q.id, i]) ?? []), [test]);
 
@@ -149,13 +177,15 @@ export function MentorTestRunnerDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{isPlacement ? "Bài kiểm tra đầu vào" : isLevelGate ? "Gate Test lên cấp" : "Bài kiểm tra nhanh"}</DialogTitle>
+          <DialogTitle>{isPlacement ? "Bài kiểm tra đầu vào" : isLevelGate ? "Gate Test lên cấp" : isRemediation ? "Bài học bù" : "Bài kiểm tra nhanh"}</DialogTitle>
           <DialogDescription>
             {isPlacement
               ? "Khoảng 50 câu trải đều các Part, lấy từ ngân hàng câu hỏi mới nhất — để AI Mentor ước tính điểm xuất phát của bạn."
               : isLevelGate
                 ? "Đạt từ 80% và không nhãn kiến thức nào yếu để lên cấp tiếp theo. Dưới ngưỡng đó, AI Mentor sẽ chỉ đúng phần cần học lại."
-                : "Vượt qua để AI Mentor mở khóa phần khó hơn cho bạn."}
+                : isRemediation
+                  ? "Ôn đúng phần vừa yếu ở Gate Test, kèm vài câu ôn nhanh các phần khác — xong bài này có thể thử lại Gate Test ngay."
+                  : "Vượt qua để AI Mentor mở khóa phần khó hơn cho bạn."}
           </DialogDescription>
         </DialogHeader>
 
@@ -242,9 +272,24 @@ export function MentorTestRunnerDialog({
                     Chúc mừng! Bạn đã lên {MENTOR_LEVEL_LABEL_VI[result.levelGate.toLevel] ?? result.levelGate.toLevel}.
                   </p>
                 )}
-                {result.levelGate.branch === "REMEDIATE" && (
+                {result.levelGate.branch === "REMEDIATE" && result.levelGate.weakLabels.length > 0 && (
                   <p className="text-sm text-muted-foreground">
                     Gần đạt rồi — hãy ôn lại {result.levelGate.weakLabels.join(", ")} rồi làm lại Gate Test sau.
+                  </p>
+                )}
+                {result.levelGate.branch === "REMEDIATE" && result.levelGate.weakLabels.length === 0 && result.levelGate.extraRequirements && (
+                  <p className="text-sm text-muted-foreground">
+                    Điểm Gate Test đã đạt, nhưng chưa đủ điều kiện phụ để lên cấp:
+                    {!result.levelGate.extraRequirements.vocabOk &&
+                      ` từ vựng đã nhớ ${Math.round(result.levelGate.extraRequirements.vocabRate * 100)}% (cần ≥70%)`}
+                    {!result.levelGate.extraRequirements.vocabOk && result.levelGate.extraRequirements.placementOk === false && " và "}
+                    {result.levelGate.extraRequirements.placementOk === false &&
+                      ` điểm Placement test ${
+                        result.levelGate.extraRequirements.placementScore !== null
+                          ? `${Math.round(result.levelGate.extraRequirements.placementScore * 100)}%`
+                          : "chưa làm"
+                      } (cần ≥80%)`}
+                    . Ôn thêm rồi làm lại Gate Test sau.
                   </p>
                 )}
                 {result.levelGate.branch === "RESTART" && (
@@ -252,6 +297,27 @@ export function MentorTestRunnerDialog({
                     Chưa đạt ngưỡng cần thiết — hãy học lại nền tảng của: {result.levelGate.hongLabels.join(", ")} rồi thử lại.
                   </p>
                 )}
+                {result.levelGate.branch !== "ADVANCE" && result.levelGate.remediationTestId && onStartRemediation && (
+                  <Button size="sm" className="mt-1 w-fit" onClick={() => onStartRemediation(result.levelGate!.remediationTestId!)}>
+                    Làm bài học bù ngay
+                  </Button>
+                )}
+              </>
+            ) : result.remediation ? (
+              <>
+                <ul className="flex w-full flex-col gap-1 text-left text-sm">
+                  {result.remediation.labelResults.map((l) => (
+                    <li key={l.dimensionKey} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-1.5">
+                      <span>{l.dimensionKey}</span>
+                      <span className={l.cleared ? "text-success" : "text-destructive"}>{Math.round(l.score * 100)}%</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-sm text-muted-foreground">
+                  {result.remediation.allCleared
+                    ? "Đã bù xong phần yếu — thử làm lại Gate Test luôn nhé."
+                    : "Còn nhãn chưa đạt — làm thêm một bài học bù nữa trước khi thử lại Gate Test."}
+                </p>
               </>
             ) : (
               <p className="text-sm text-muted-foreground">

@@ -20,7 +20,24 @@ export function loadLocalSnapshot(attemptId: string): LocalSnapshot | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(localKey(attemptId));
-    return raw ? (JSON.parse(raw) as LocalSnapshot) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as LocalSnapshot;
+    // Backfill answers saved by an older build that predates the decision-
+    // log/timing fields — a stale snapshot must never crash hydration or
+    // turn answerChangeCount into NaN.
+    for (const key of Object.keys(parsed.answers)) {
+      const a = parsed.answers[key];
+      parsed.answers[key] = {
+        selectedLabel: a.selectedLabel,
+        isFlagged: a.isFlagged,
+        isSynced: a.isSynced,
+        initialSelectedLabel: a.initialSelectedLabel ?? null,
+        answerChangeCount: a.answerChangeCount ?? 0,
+        timeSpentMs: a.timeSpentMs ?? 0,
+        syncedTimeMs: a.syncedTimeMs ?? 0,
+      };
+    }
+    return parsed;
   } catch {
     return null;
   }
@@ -60,11 +77,21 @@ export function useExamSync(attemptId: string) {
     }
   }, [attemptId, hydrated, answers, remainingSec, currentIndex]);
 
+  const settleCurrentQuestionTime = useExamStore((s) => s.settleCurrentQuestionTime);
+
   const flush = React.useCallback(async () => {
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
+    // Fold in live time on whatever question is currently open before
+    // reading state — otherwise the question being actively viewed never
+    // reports its growing timeSpentMs until the learner navigates away.
+    settleCurrentQuestionTime();
     const state = useExamStore.getState();
-    const unsynced = Object.entries(state.answers).filter(([, a]) => !a.isSynced);
+    // A question needs syncing if its answer/flag changed (isSynced) OR
+    // its settled time grew past what was last pushed — a question the
+    // learner revisits without changing the answer still needs its extra
+    // time reported.
+    const toSync = Object.entries(state.answers).filter(([, a]) => !a.isSynced || a.timeSpentMs > a.syncedTimeMs);
 
     try {
       const res = await fetch(`/api/attempts/${attemptId}/sync`, {
@@ -73,21 +100,24 @@ export function useExamSync(attemptId: string) {
         body: JSON.stringify({
           remainingSec: state.remainingSec,
           currentQuestionIndex: state.currentIndex,
-          answers: unsynced.map(([questionId, a]) => ({
+          answers: toSync.map(([questionId, a]) => ({
             questionId,
             selectedLabel: a.selectedLabel,
             isFlagged: a.isFlagged,
+            initialSelectedLabel: a.initialSelectedLabel,
+            answerChangeCount: a.answerChangeCount,
+            timeSpentDeltaSec: Math.max(0, Math.round((a.timeSpentMs - a.syncedTimeMs) / 1000)),
           })),
         }),
         keepalive: true,
       });
       if (res.ok) {
-        for (const [questionId] of unsynced) markSynced(questionId);
+        for (const [questionId, a] of toSync) markSynced(questionId, a.timeSpentMs);
       }
     } catch {
       // Offline or request failed — stays queued, retried on next tick.
     }
-  }, [attemptId, markSynced]);
+  }, [attemptId, markSynced, settleCurrentQuestionTime]);
 
   React.useEffect(() => {
     if (!hydrated) return;

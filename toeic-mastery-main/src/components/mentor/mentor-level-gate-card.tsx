@@ -47,6 +47,7 @@ async function startLevelGateTest(): Promise<{ mentorTestId: string; questionCou
 export function MentorLevelGateCard() {
   const router = useRouter();
   const [gateTestId, setGateTestId] = React.useState<string | null>(null);
+  const [remediationTestId, setRemediationTestId] = React.useState<string | null>(null);
 
   const eligibilityQuery = useQuery({ queryKey: ["mentor-level-gate-eligibility"], queryFn: fetchEligibility });
 
@@ -100,6 +101,32 @@ export function MentorLevelGateCard() {
           onOpenChange={(next) => {
             if (!next) {
               setGateTestId(null);
+              void eligibilityQuery.refetch();
+              router.refresh();
+            }
+          }}
+          onStartRemediation={(id) => {
+            // Swap straight from the Gate Test dialog into the học bù
+            // dialog — closing this one first would flash the eligibility
+            // card in between for no reason.
+            setGateTestId(null);
+            setRemediationTestId(id);
+          }}
+        />
+      )}
+
+      {remediationTestId && (
+        <MentorTestRunnerDialog
+          mentorTestId={remediationTestId}
+          open={!!remediationTestId}
+          onOpenChange={(next) => {
+            if (!next) {
+              setRemediationTestId(null);
+              // Eligibility for the Gate Test itself never changes from
+              // doing học bù (it was already met to unlock the original
+              // Gate Test) — refetch anyway so the card's copy/progress
+              // numbers stay current if more practice happened along the
+              // way.
               void eligibilityQuery.refetch();
               router.refresh();
             }

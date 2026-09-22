@@ -146,17 +146,23 @@ export function ExamRunner({ data }: { data: ExamData }) {
     setSubmitting(true);
     try {
       // Flush the latest state before finalizing so nothing typed in the last
-      // few seconds is lost.
+      // few seconds is lost — settle the currently-open question's stopwatch
+      // first so its final seconds count too.
+      useExamStore.getState().settleCurrentQuestionTime();
+      const finalState = useExamStore.getState();
       await fetch(`/api/attempts/${data.attemptId}/sync`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          remainingSec: useExamStore.getState().remainingSec,
-          currentQuestionIndex: useExamStore.getState().currentIndex,
-          answers: Object.entries(useExamStore.getState().answers).map(([questionId, a]) => ({
+          remainingSec: finalState.remainingSec,
+          currentQuestionIndex: finalState.currentIndex,
+          answers: Object.entries(finalState.answers).map(([questionId, a]) => ({
             questionId,
             selectedLabel: a.selectedLabel,
             isFlagged: a.isFlagged,
+            initialSelectedLabel: a.initialSelectedLabel,
+            answerChangeCount: a.answerChangeCount,
+            timeSpentDeltaSec: Math.max(0, Math.round((a.timeSpentMs - a.syncedTimeMs) / 1000)),
           })),
         }),
       }).catch(() => {});

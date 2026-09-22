@@ -4,6 +4,27 @@ export interface ExamAnswerState {
   selectedLabel: string | null;
   isFlagged: boolean;
   isSynced: boolean;
+  /** Set once, on the first-ever selection for this question — immutable
+   * after. Paired with `answerChangeCount` as the Cấp A "nhật ký quyết
+   * định" (decision log) signal (see advanced-readiness.ts). */
+  initialSelectedLabel: string | null;
+  /** Incremented whenever selectedLabel changes to a DIFFERENT non-null
+   * value after the first pick (not on the first pick itself). */
+  answerChangeCount: number;
+  /** Cumulative active-viewing time in ms, settled each time the learner
+   * navigates away from this question (see goTo/settleCurrentQuestionTime).
+   * Live time on the currently-open question isn't folded in here until
+   * settled — use getLiveTimeSpentMs for the up-to-the-moment value. */
+  timeSpentMs: number;
+  /** How much of timeSpentMs has already been pushed to the server —
+   * use-exam-sync sends only the delta and advances this on success, so a
+   * question the learner sits on across several sync ticks doesn't
+   * double-count. */
+  syncedTimeMs: number;
+}
+
+function emptyAnswer(): ExamAnswerState {
+  return { selectedLabel: null, isFlagged: false, isSynced: false, initialSelectedLabel: null, answerChangeCount: 0, timeSpentMs: 0, syncedTimeMs: 0 };
 }
 
 export interface ExamQuestionOption {
@@ -50,6 +71,11 @@ interface ExamStoreState {
   hydrated: boolean;
   isSubmitting: boolean;
   hasPendingSync: boolean;
+  /** Wall-clock instant (epoch ms) the learner started viewing
+   * `currentIndex`'s question — the running stopwatch's zero point. Reset
+   * every time `goTo` fires (which also settles the elapsed time into the
+   * question being left). Null before hydration. */
+  currentQuestionEnteredAt: number | null;
 
   hydrate: (params: {
     attemptId: string;
@@ -64,7 +90,12 @@ interface ExamStoreState {
   next: () => void;
   previous: () => void;
   tickTimer: () => void;
-  markSynced: (questionId: string) => void;
+  markSynced: (questionId: string, syncedTimeMs: number) => void;
+  /** Folds elapsed time on the currently-open question into its
+   * `timeSpentMs` and restarts the stopwatch — called by goTo when leaving
+   * a question, and by use-exam-sync before every flush so a question the
+   * learner has sat on for multiple sync ticks still reports fresh time. */
+  settleCurrentQuestionTime: () => void;
 }
 
 export const useExamStore = create<ExamStoreState>()((set, get) => ({
@@ -77,6 +108,7 @@ export const useExamStore = create<ExamStoreState>()((set, get) => ({
   hydrated: false,
   isSubmitting: false,
   hasPendingSync: false,
+  currentQuestionEnteredAt: null,
 
   hydrate: ({ attemptId, questions, answers, currentIndex, remainingSec }) =>
     set({
@@ -92,37 +124,58 @@ export const useExamStore = create<ExamStoreState>()((set, get) => ({
       remainingSec,
       endTime: Date.now() + remainingSec * 1000,
       hydrated: true,
+      currentQuestionEnteredAt: Date.now(),
     }),
 
   setAnswer: (questionId, label) =>
-    set((state) => ({
-      answers: {
-        ...state.answers,
-        [questionId]: {
-          selectedLabel: label,
-          isFlagged: state.answers[questionId]?.isFlagged ?? false,
-          isSynced: false,
+    set((state) => {
+      const existing = state.answers[questionId] ?? emptyAnswer();
+      const isFirstPick = existing.initialSelectedLabel === null;
+      const isChange = !isFirstPick && existing.selectedLabel !== null && existing.selectedLabel !== label;
+      return {
+        answers: {
+          ...state.answers,
+          [questionId]: {
+            ...existing,
+            selectedLabel: label,
+            initialSelectedLabel: existing.initialSelectedLabel ?? label,
+            answerChangeCount: existing.answerChangeCount + (isChange ? 1 : 0),
+            isSynced: false,
+          },
         },
-      },
-      hasPendingSync: true,
-    })),
+        hasPendingSync: true,
+      };
+    }),
 
   toggleFlag: (questionId) =>
-    set((state) => ({
-      answers: {
-        ...state.answers,
-        [questionId]: {
-          selectedLabel: state.answers[questionId]?.selectedLabel ?? null,
-          isFlagged: !(state.answers[questionId]?.isFlagged ?? false),
-          isSynced: false,
-        },
-      },
-      hasPendingSync: true,
-    })),
+    set((state) => {
+      const existing = state.answers[questionId] ?? emptyAnswer();
+      return {
+        answers: { ...state.answers, [questionId]: { ...existing, isFlagged: !existing.isFlagged, isSynced: false } },
+        hasPendingSync: true,
+      };
+    }),
+
+  settleCurrentQuestionTime: () =>
+    set((state) => {
+      const current = state.questions[state.currentIndex];
+      if (!current || state.currentQuestionEnteredAt === null) return {};
+      const now = Date.now();
+      const elapsed = Math.max(0, now - state.currentQuestionEnteredAt);
+      if (elapsed === 0) return { currentQuestionEnteredAt: now };
+      const existing = state.answers[current.id] ?? emptyAnswer();
+      return {
+        answers: { ...state.answers, [current.id]: { ...existing, timeSpentMs: existing.timeSpentMs + elapsed } },
+        currentQuestionEnteredAt: now,
+      };
+    }),
 
   goTo: (index) => {
     const total = get().questions.length;
     if (index < 0 || index >= total) return;
+    // Settle the question being left before switching — its stopwatch
+    // reading must be final before currentIndex moves on.
+    get().settleCurrentQuestionTime();
     set({ currentIndex: index });
   },
   next: () => get().goTo(get().currentIndex + 1),
@@ -134,10 +187,10 @@ export const useExamStore = create<ExamStoreState>()((set, get) => ({
       return { remainingSec: Math.max(0, Math.round((state.endTime - Date.now()) / 1000)) };
     }),
 
-  markSynced: (questionId) =>
+  markSynced: (questionId, syncedTimeMs) =>
     set((state) => ({
       answers: state.answers[questionId]
-        ? { ...state.answers, [questionId]: { ...state.answers[questionId], isSynced: true } }
+        ? { ...state.answers, [questionId]: { ...state.answers[questionId], isSynced: true, syncedTimeMs } }
         : state.answers,
     })),
 }));

@@ -64,12 +64,28 @@ export async function getExamData(attemptId: string, userId: string): Promise<Ex
       orderBy: { orderIndex: "asc" },
       include: { options: { orderBy: { label: "asc" }, select: { label: true, content: true } }, passage: true },
     }),
-    db.attemptAnswer.findMany({ where: { attemptId }, select: { questionId: true, selectedLabel: true, isFlagged: true } }),
+    db.attemptAnswer.findMany({
+      where: { attemptId },
+      select: { questionId: true, selectedLabel: true, isFlagged: true, initialSelectedLabel: true, answerChangeCount: true, timeSpentSec: true },
+    }),
   ]);
 
   const answers: Record<string, ExamAnswerState> = {};
   for (const a of existingAnswers) {
-    answers[a.questionId] = { selectedLabel: a.selectedLabel, isFlagged: a.isFlagged, isSynced: true };
+    // timeSpentMs/syncedTimeMs both start at the already-persisted total —
+    // a resumed attempt's stopwatch keeps accruing on top of it, and the
+    // first flush's delta is computed against this same baseline so
+    // nothing already saved gets double-counted.
+    const persistedMs = a.timeSpentSec * 1000;
+    answers[a.questionId] = {
+      selectedLabel: a.selectedLabel,
+      isFlagged: a.isFlagged,
+      isSynced: true,
+      initialSelectedLabel: a.initialSelectedLabel,
+      answerChangeCount: a.answerChangeCount,
+      timeSpentMs: persistedMs,
+      syncedTimeMs: persistedMs,
+    };
   }
 
   const passages: ExamData["passages"] = {};

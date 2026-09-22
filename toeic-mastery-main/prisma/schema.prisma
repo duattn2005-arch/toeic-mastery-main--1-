@@ -191,6 +191,15 @@ enum SkillDimensionType {
    * level-gate.ts) — dimensionKey is the target MentorLevel being tested
    * for ("INTERMEDIATE"/"ADVANCED"), not a real skill dimension. */
   LEVEL_GATE
+  /** A "học bù" mini-test auto-generated right after a REMEDIATE/RESTART
+   * LEVEL_GATE result, pooled across the specific weak/hổng labels it's
+   * meant to fix (see MentorTest.remediationLabels) — dimensionKey is just
+   * a display string ("BEGINNER->INTERMEDIATE"), not a real dimension. */
+  REMEDIATION
+  /** Cấp A "nhãn chiến lược" (see StrategicLabel) — the dual-label signal
+   * layered on top of PART/GRAMMAR_TOPIC for Intermediate→Advanced gating
+   * and internal Advanced-readiness classification. */
+  STRATEGIC_LABEL
 }
 
 /**
@@ -523,6 +532,11 @@ model Question {
   explanationVi    String        @map("explanation_vi")
   grammarTopicSlug String?       @map("grammar_topic_slug")
   vocabularyFocus  String[]      @default([]) @map("vocabulary_focus")
+  /** Cấp A "nhãn chiến lược" (see StrategicLabel) — denormalized slug array,
+   * same pattern as vocabularyFocus, so a question can carry zero to many
+   * strategic labels alongside its one PART/GRAMMAR_TOPIC label. Only
+   * Part 3/6/7-style inference questions are expected to have any. */
+  strategicLabelSlugs String[]    @default([]) @map("strategic_label_slugs")
   evidenceText     String?       @map("evidence_text")
   difficulty       Difficulty    @default(MEDIUM)
   status           ContentStatus @default(PUBLISHED)
@@ -626,7 +640,23 @@ model AttemptAnswer {
   selectedLabel String?   @map("selected_label") @db.VarChar(1)
   isCorrect     Boolean?  @map("is_correct")
   isFlagged     Boolean   @default(false) @map("is_flagged")
+  /** Real accumulated active-viewing time, now actually written by
+   * /api/attempts/[attemptId]/sync (client-tracked per-question stopwatch,
+   * see exam-store.ts) — previously present in schema but never populated
+   * by any route. */
   timeSpentSec  Int       @default(0) @map("time_spent_sec")
+  /** Set once, the first time this question is answered — unlike
+   * `answeredAt` below (which keeps moving to "now" on every sync/change),
+   * this is immutable so a performance-curve block lookup can trust it. */
+  firstAnsweredAt DateTime? @map("first_answered_at")
+  /** The very first label the learner picked for this question — paired
+   * with `selectedLabel` (the final one) and `answerChangeCount`, this is
+   * the Cấp A "nhật ký quyết định" (decision log) signal used to detect
+   * answer-switching (see advanced-readiness.ts). Immutable once set. */
+  initialSelectedLabel String? @map("initial_selected_label") @db.VarChar(1)
+  /** How many times selectedLabel changed to a different non-null value
+   * after the first pick. */
+  answerChangeCount Int @default(0) @map("answer_change_count")
   answeredAt    DateTime? @map("answered_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
@@ -875,6 +905,27 @@ model GrammarTopic {
   questions Question[]
 
   @@map("grammar_topics")
+}
+
+/**
+ * Cấp A "nhãn chiến lược" taxonomy — the dual-label signal on top of
+ * PART/GRAMMAR_TOPIC (see level-gate.ts's scoreByLabel and
+ * advanced-readiness.ts). Not FK'd from Question the way GrammarTopic is;
+ * Question.strategicLabelSlugs matches these slugs by string, same
+ * denormalized-array pattern as vocabularyFocus/VocabularyWord — a
+ * question can carry several strategic labels, so a single FK column
+ * wouldn't fit.
+ */
+model StrategicLabel {
+  id              String     @id @default(uuid()) @db.Uuid
+  slug            String     @unique
+  title           String
+  category        String?
+  appliesToParts  TestPart[] @map("applies_to_parts")
+  orderIndex      Int        @default(0) @map("order_index")
+  createdAt       DateTime   @default(now()) @map("created_at")
+
+  @@map("strategic_labels")
 }
 
 model GrammarLesson {
@@ -1404,10 +1455,21 @@ model MentorTest {
   startedAt      DateTime?          @map("started_at")
   completedAt    DateTime?          @map("completed_at")
   createdAt      DateTime           @default(now()) @map("created_at")
+  /** REMEDIATION only — the exact {dimensionType, dimensionKey}[] this test
+   * covers (weakLabels/hongLabels from the gate it followed). dimensionKey
+   * alone can't hold a multi-label list, so the real label set lives here;
+   * see generateRemediationTest in level-gate.ts. */
+  remediationLabels    Json?   @map("remediation_labels")
+  /** REMEDIATION only — the LEVEL_GATE MentorTest that produced the
+   * weak/hổng labels this test bù's. Lets the UI offer "làm lại Gate Test"
+   * once every remediationLabels entry clears WEAK_THRESHOLD. */
+  sourceLevelGateTestId String? @map("source_level_gate_test_id") @db.Uuid
 
-  user         Profile              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  conversation MentorConversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
-  questions    MentorTestQuestion[]
+  user             Profile              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation     MentorConversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  questions        MentorTestQuestion[]
+  sourceLevelGateTest    MentorTest?  @relation("LevelGateRemediation", fields: [sourceLevelGateTestId], references: [id], onDelete: SetNull)
+  remediationTests       MentorTest[] @relation("LevelGateRemediation")
 
   @@index([userId, status])
   @@map("mentor_tests")
@@ -1420,6 +1482,14 @@ model MentorTestQuestion {
   orderIndex    Int       @default(0) @map("order_index")
   selectedLabel String?   @map("selected_label") @db.VarChar(1)
   isCorrect     Boolean?  @map("is_correct")
+  /** Same decision-log/timing signals as AttemptAnswer (see its doc
+   * comments) — MentorTest questions (Gate Test, Mock Test's own retries
+   * don't apply here but a Gate/Remediation test does) need the same
+   * instrumentation for advanced-readiness.ts's answer-switching check. */
+  timeSpentSec  Int       @default(0) @map("time_spent_sec")
+  firstAnsweredAt DateTime? @map("first_answered_at")
+  initialSelectedLabel String? @map("initial_selected_label") @db.VarChar(1)
+  answerChangeCount Int @default(0) @map("answer_change_count")
   answeredAt    DateTime? @map("answered_at")
 
   mentorTest MentorTest @relation(fields: [mentorTestId], references: [id], onDelete: Cascade)

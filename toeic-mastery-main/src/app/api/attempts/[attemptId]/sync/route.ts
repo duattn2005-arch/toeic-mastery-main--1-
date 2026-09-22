@@ -14,6 +14,15 @@ const syncSchema = z.object({
         questionId: z.string().uuid(),
         selectedLabel: z.string().length(1).nullable(),
         isFlagged: z.boolean(),
+        /** First-ever label the learner picked for this question — set
+         * once client-side (see exam-store.ts's setAnswer) and reported
+         * as-is every sync; the server never derives it itself. */
+        initialSelectedLabel: z.string().length(1).nullable(),
+        answerChangeCount: z.number().int().min(0),
+        /** Seconds of active-viewing time accrued since the LAST sync of
+         * this question (not the running total) — added via `increment`,
+         * see exam-store.ts's syncedTimeMs bookkeeping. */
+        timeSpentDeltaSec: z.number().int().min(0),
       })
     )
     .default([]),
@@ -47,6 +56,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ att
     MAX_STUDY_SYNC_GAP_SEC
   );
 
+  // firstAnsweredAt must stay immutable once set (unlike answeredAt, which
+  // keeps moving to "now" below) — an upsert alone can't express "only on
+  // first insert" for an existing row, so read which questions already
+  // have one before building the write batch.
+  const alreadyFirstAnswered = new Set(
+    (
+      await db.attemptAnswer.findMany({
+        where: { attemptId, questionId: { in: answers.map((a) => a.questionId) }, firstAnsweredAt: { not: null } },
+        select: { questionId: true },
+      })
+    ).map((r) => r.questionId)
+  );
+
   await db.$transaction([
     db.attempt.update({
       where: { id: attemptId },
@@ -64,11 +86,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ att
           questionId: a.questionId,
           selectedLabel: a.selectedLabel,
           isFlagged: a.isFlagged,
+          initialSelectedLabel: a.initialSelectedLabel,
+          answerChangeCount: a.answerChangeCount,
+          timeSpentSec: a.timeSpentDeltaSec,
+          firstAnsweredAt: a.selectedLabel ? new Date() : null,
           answeredAt: a.selectedLabel ? new Date() : null,
         },
         update: {
           selectedLabel: a.selectedLabel,
           isFlagged: a.isFlagged,
+          initialSelectedLabel: a.initialSelectedLabel,
+          answerChangeCount: a.answerChangeCount,
+          timeSpentSec: { increment: a.timeSpentDeltaSec },
+          ...(alreadyFirstAnswered.has(a.questionId) ? {} : { firstAnsweredAt: a.selectedLabel ? new Date() : undefined }),
           answeredAt: a.selectedLabel ? new Date() : null,
         },
       })
