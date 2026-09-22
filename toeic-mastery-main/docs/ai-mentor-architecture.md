@@ -1044,3 +1044,44 @@ Hai lựa chọn, anh/chị chọn 1:
   1/Listening: nếu muốn Gate Test dùng ảnh/audio thật thay vì
   text-to-speech tạm thời, cần gửi hoặc cho phép lấy từ nguồn free đã duyệt
   (Unsplash/Pexels/Pixabay).
+
+### 10.6 Chốt quyết định (2026-09-22) — anh xác nhận nội bộ team đã thống nhất
+
+Anh xác nhận bỏ qua các comment tranh luận dở trong file `.docx` gốc — team
+đã tự chỉnh và thống nhất. Mình chốt luôn 4 điểm mở ở mục 10.2 theo đúng
+hướng đã đề xuất (không có phản hồi khác đi):
+
+1. **Ngưỡng phân loại**: mỗi cấp dùng bộ ngưỡng cố định trên chính bài Gate
+   Test của cấp đó — **≥80% đạt lên cấp kế / 50-79% học bù / <50% học lại**
+   — không so % tích luỹ với một kỳ TOEIC đầy đủ.
+2. **Lọc nhiễu thời gian**: áp dụng cho **cả Cấp B lẫn Cấp I**, cùng một
+   luật (loại câu <10s hoặc >120s khi tính % theo nhãn).
+3. **Danh sách nhãn cốt lõi** — đề xuất lấy thẳng từ dữ liệu thật đang có
+   trong `prisma/seed-data/grammar.ts` (14 `GrammarTopic` đã có bài học +
+   câu hỏi liên kết qua `Question.grammarTopicId`), dùng làm nhãn cốt lõi
+   cho **Cấp B**:
+   `nouns, pronouns, adjectives, adverbs, prepositions, conjunctions,
+   verb-tense, passive-voice, gerund, infinitive, relative-clause,
+   conditionals, comparatives, subject-verb-agreement, participles`
+   (thực ra là 15 topic, không phải 14 — đếm lại thấy sai số so với câu
+   trước, sửa luôn cho khớp thực tế). Với **Cấp I**, spec ví dụ theo kiểu
+   "Part 5 - Mệnh đề quan hệ" tức là ghép `TestPart` (chỉ có
+   `grammarTopicId` ở Part 5/6) — đề xuất nhãn cốt lõi Cấp I = từng
+   `TestPart` (PART1..PART7) làm nhãn khung, cộng thêm `GrammarTopic` làm
+   nhãn con cho riêng Part 5/6 (Part 1-4/7 không có `grammarTopicId` nên
+   chỉ tính theo Part). Đây là đề xuất dựa trên schema thật — anh duyệt lại
+   1 câu trước khi mình đưa vào migration/code, vì đây là điểm ảnh hưởng
+   trực tiếp tới cách tính "đủ mẫu thi Gate".
+4. **Tín hiệu số lần bấm hỏi AI Mentor**: bỏ khỏi luật xử lý (đúng như spec
+   cho phép khi hệ thống chưa có), không chặn tiến độ.
+
+Với mục 10.4 (thời điểm hỏi mục tiêu điểm/ngày thi), tin nhắn xác nhận
+không nêu rõ chọn hướng nào — mình tạm lấy phương án **giữ nguyên hành vi
+hiện tại** (hỏi `targetScore`/`examDate` ngay từ đầu, dùng chung cho cả B
+và I) vì ít việc sửa nhất và không phá UX đang chạy. Nếu team muốn đổi
+theo đúng câu chữ spec (dời câu hỏi sang lúc lên Cấp I), báo lại để mình
+sửa `onboarding.ts`.
+
+**Vẫn còn treo, chưa có gì để chốt** (mục 10.5 chưa nhận được):
+Cấp A + luồng AI Mentor tổng thể, câu hỏi mới cho ngân hàng (kho hiện tại
+vẫn ở mức seed tối thiểu), ảnh Part 1 + audio Listening thật.
