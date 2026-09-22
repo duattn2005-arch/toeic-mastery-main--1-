@@ -33,7 +33,10 @@ export interface CoreLabel {
 const MIN_SAMPLE_PER_LABEL: Record<GateableLevel, number> = { BEGINNER: 10, INTERMEDIATE: 15 };
 const MIN_TOTAL_ATTEMPTED: Record<GateableLevel, number> = { BEGINNER: 100, INTERMEDIATE: 200 };
 const GATE_TARGET_LEVEL: Record<GateableLevel, MentorLevel> = { BEGINNER: "INTERMEDIATE", INTERMEDIATE: "ADVANCED" };
-const GATE_PASS_THRESHOLD = 0.8;
+/** Exported for competency-heatmap.ts (mục 12) so the heatmap's Green/
+ * Yellow/Red bands use the exact same cutoffs as the Gate Test itself,
+ * instead of a second, potentially-drifting copy of these numbers. */
+export const GATE_PASS_THRESHOLD = 0.8;
 const GATE_RESTART_THRESHOLD = 0.5;
 const REMEDIATE_MAX_LABELS = 3;
 const GATE_QUESTIONS_PER_LABEL = 3;
@@ -46,9 +49,10 @@ const GATE_QUESTIONS_PER_LABEL = 3;
  * practice on", and changing it would ripple into those features too.
  * Level-gate/remediation logic uses this dedicated constant so the actual
  * B→I/I→A transition math matches the source docs' numbers exactly
- * (2026-09-22).
+ * (2026-09-22). Exported for competency-heatmap.ts (mục 12) — see
+ * GATE_PASS_THRESHOLD's own export comment just above.
  */
-const HONG_LABEL_THRESHOLD = 0.5;
+export const HONG_LABEL_THRESHOLD = 0.5;
 /** Cấp I mục V's "Đạt chuẩn lên A" table — Placement test ≥80% and Gate
  * Test I ≥80% (already GATE_PASS_THRESHOLD). Only re-checked for the I→A
  * transition; Cấp B's own table has no placement re-check. */

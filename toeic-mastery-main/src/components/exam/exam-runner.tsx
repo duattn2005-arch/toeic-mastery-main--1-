@@ -28,7 +28,9 @@ import { useExamSync, loadLocalSnapshot } from "@/hooks/use-exam-sync";
 import { useDictionaryHintTutorial } from "@/hooks/use-dictionary-hint-tutorial";
 import { groupQuestionsByPassage } from "@/lib/exam/group-questions";
 import { cn } from "@/lib/utils";
+import { PART_META } from "@/lib/constants/toeic";
 import type { ExamData } from "@/lib/data/exam";
+import type { TestPart } from "@/generated/prisma/enums";
 
 export function ExamRunner({ data }: { data: ExamData }) {
   const router = useRouter();
@@ -141,6 +143,35 @@ export function ExamRunner({ data }: { data: ExamData }) {
       window.removeEventListener("focus", recompute);
     };
   }, [hydrated, tickTimer]);
+
+  // Real-time pace coaching (docs/ai-mentor-architecture.md mục 12 —
+  // "Coaching thời gian thực"): nudge once per question if the learner is
+  // spending far longer than PART_META's real-TOEIC-pacing target, so a
+  // slow Part 5/7 question doesn't silently eat into time meant for the
+  // rest of the test. Reads currentQuestionEnteredAt straight from the
+  // store (not a reactive selector) so this interval doesn't need
+  // recreating every tick — same pattern submit() below already uses.
+  // Informational only, never blocks answering.
+  const paceWarnedForRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!hydrated || !currentQuestion) return;
+    const target = PART_META[currentQuestion.part as TestPart]?.targetSeconds;
+    if (!target) return;
+
+    const interval = setInterval(() => {
+      if (paceWarnedForRef.current === currentQuestion.id) return;
+      const enteredAt = useExamStore.getState().currentQuestionEnteredAt;
+      if (enteredAt === null) return;
+      const elapsedSec = (Date.now() - enteredAt) / 1000;
+      if (elapsedSec >= target * 3) {
+        paceWarnedForRef.current = currentQuestion.id;
+        toast.warning(
+          `Bạn đang mất hơn ${Math.round(elapsedSec)} giây cho câu này — mục tiêu ${PART_META[currentQuestion.part as TestPart].shortLabel} là khoảng ${target} giây/câu. Cân nhắc chọn đáp án tốt nhất hiện có và chuyển tiếp.`
+        );
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [hydrated, currentQuestion]);
 
   const submit = React.useCallback(async () => {
     setSubmitting(true);

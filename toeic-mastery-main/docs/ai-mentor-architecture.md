@@ -1420,14 +1420,18 @@ gọi tên "AI" thống nhất:
    `exam-store.ts` và so với ngưỡng mục tiêu, bắn cảnh báo giữa chừng. Đây
    là tương tác UI hoàn toàn mới, khác các cảnh báo hiện có (vốn chỉ hiện
    sau khi nộp bài).
-5. **Phễu thương mại (Commercial Triggers)** — kiểm tra thật: `PlanTier`
-   (FREE/PRO) tồn tại trong schema nhưng **không được dùng ở bất kỳ đâu
-   trong `src/`** (grep xác nhận, chỉ xuất hiện trong code Prisma tự sinh).
-   `rate-limit.ts` cũng hoàn toàn generic, không có khái niệm PlanTier gắn
-   sẵn. Nghĩa là **chưa hề có cơ chế Premium/thanh toán nào đang chạy thật**
-   trong ứng dụng — xây "mồi nhử mở khóa Premium" lúc này sẽ là hứa hẹn một
-   tính năng chưa tồn tại. Đây là điểm cần anh xác nhận rõ nhất trước khi
-   động vào, xem mục 12.2.
+5. ~~**Phễu thương mại (Commercial Triggers)** — chưa có cơ chế Premium~~ —
+   **đính chính (2026-09-22)**: nhận định ban đầu này SAI. Grep lần đầu chỉ
+   tìm tên type "PlanTier", bỏ sót cách code thực tế dùng field
+   `Profile.plan` + helper `isPro()` (`src/lib/auth.ts:211`). Thực tế đã có
+   sẵn **một hệ thống Free/Pro đang chạy thật**: `mentor-access.ts` giới
+   hạn "gợi ý học tiếp" 4 lần/ngày cho Free, không giới hạn cho Pro; có
+   trang `/pricing`, tích hợp VNPay (thấy trong `.env.example`), và ít nhất
+   3 nơi khác dùng `isPro()` để giới hạn tính năng (dictionary, PDF export,
+   reveal đáp án). Nghĩa là xây thêm "mồi nhử mở khóa Premium" cho AI Mentor
+   là việc **hoàn toàn khả thi ngay**, không phải chờ hạ tầng thanh toán —
+   nhưng anh đã yêu cầu (2026-09-22) **để việc này lại sau**, không làm
+   trong đợt mục 12 này. Giữ nguyên quyết định đó.
 6. **Hồ sơ bàn giao dạng JSON có cấu trúc thật** (không phải text nối vào
    `MentorMemory.summary` như hiện tại) — đã nêu là thiếu ở mục 11.5, vẫn
    đúng cho Cấp AI.
@@ -1450,29 +1454,72 @@ gọi tên "AI" thống nhất:
    bản đồ nhiệt (feature mới, không rủi ro phá dữ liệu cũ) nhưng **giữ
    nguyên** `evaluateLevelGate` không lọc (đã chốt, không đổi hành vi đang
    chạy nếu không anh yêu cầu).
-3. **Phễu thương mại — cần xác nhận rõ nhất**: anh có muốn build tính năng
-   Premium/thanh toán thật (PlanTier gating thật) trước, hay chỉ muốn AI
-   Mentor **hiển thị lời mời nâng cấp** như một thông điệp marketing (chưa
-   cần cơ chế thanh toán/khóa tính năng thật đứng sau)? Hai việc này khác
-   nhau hoàn toàn về khối lượng code (một cái là UI text, một cái là cả hệ
-   thống thanh toán + gating). Mình sẽ không tự ý code phần này cho tới khi
-   anh chọn rõ hướng.
+3. ~~**Phễu thương mại — cần xác nhận rõ nhất**~~ — **đã chốt (2026-09-22)**:
+   anh xác nhận "thanh toán cứ để đó đã" — bỏ qua hoàn toàn phễu thương mại
+   trong đợt code mục 12 này, kể cả khi giờ đã biết hạ tầng Free/Pro đã có
+   sẵn thật (mục 12.1 điểm 5 đính chính). Không code gì cho hướng này.
 4. **Mức độ "ẩn" nội dung trong Dynamic UI Routing** — ẩn hẳn Part 1/2 khỏi
    Dashboard nếu học viên yếu Part 7 có thể gây khó chịu (học viên có thể
    vẫn muốn tự luyện Part mình thích). Mình đề xuất **sắp xếp lại thứ tự ưu
    tiên** (đẩy Part yếu lên đầu, không xóa hẳn Part khác) thay vì ẩn hoàn
    toàn — anh xác nhận hướng này hay đúng ý muốn ẩn hẳn như spec viết.
 
-### 12.3 Chưa làm gì ở phần schema/code cho mục 12 này
+### 12.3 Chưa làm gì ở phần schema/code cho mục 12 này (lúc viết mục 12.0-12.2)
 
-Giữ đúng thói quen đã thống nhất — mục 12 dừng ở mức phân tích, chưa có
-migration/code mới. Khi anh chốt các điểm ở mục 12.2, việc code thực ra sẽ
-nhỏ hơn nhìn qua tưởng: phần lớn hạ tầng (routing 3 nhánh, nhãn đơn/kép, độ
-chín dữ liệu, hồ sơ bàn giao) đã chạy từ mục 10-11; việc mới chủ yếu là (a)
-công thức điểm trọng số mới, (b) 1 endpoint lộ diện bản đồ nhiệt, và (c) 2
-tính năng UI thật sự mới (routing động + coaching thời gian thực) — phễu
-thương mại thì cần anh chốt hướng trước tiên vì chưa có hạ tầng thanh toán
-thật đứng sau.
+Giữ đúng thói quen đã thống nhất — mục 12 dừng ở mức phân tích ở lần viết
+đầu, chưa có migration/code mới.
+
+### 12.4 Anh nói "cứ tự động làm tất cả, thanh toán để đó" — đã code xong (2026-09-22)
+
+Không schema/migration mới — toàn bộ đứng trên dữ liệu đã có từ mục 10-11.
+Theo đúng 3 hướng đã đề xuất ở mục 12.2 (không có phản hồi riêng từng điểm,
+xử lý như mục 10.6/11.4 đã làm), **bỏ qua hoàn toàn phễu thương mại** theo
+đúng yêu cầu:
+
+- **`src/lib/services/mentor/competency-heatmap.ts`** (mới): công thức điểm
+  trọng số = `baseAccuracy + speedBonus - trapPenalty` (mục 12.2 điểm 1 —
+  lớp tính toán mới, hoàn toàn tách biệt, không đụng `SkillMastery.
+  masteryScore` đang được `getWeakestDimensions`/`evaluateLevelGate`/
+  `learning-path-generator` dùng). Đọc trực tiếp `AttemptAnswer` +
+  `MentorTestQuestion`, bucket theo PART/GRAMMAR_TOPIC/STRATEGIC_LABEL
+  giống `skill-mastery.ts`. Bộ lọc nhiễu <8s/>150s (mục 12.2 điểm 2) **chỉ
+  áp dụng ở đây**, `evaluateLevelGate` giữ nguyên không lọc như đã chốt ở
+  mục 10.2.
+- **`GET /api/mentor/heatmap`** (mới): lộ diện toàn bộ bản đồ nhiệt
+  (band Xanh/Vàng/Đỏ dùng lại đúng `GATE_PASS_THRESHOLD`/
+  `HONG_LABEL_THRESHOLD` đã export từ `level-gate.ts`, không tạo ngưỡng
+  thứ hai có thể lệch nhau).
+- **`PART_META`** (`src/lib/constants/toeic.ts`): thêm `targetSeconds` mỗi
+  Part (theo đúng "quy tắc ngón tay" spec Cấp A đã nêu) — nguồn dùng chung
+  cho cả speed bonus ở heatmap lẫn coaching thời gian thực bên dưới, tránh
+  2 nơi có 2 con số lệch nhau.
+- **Định tuyến giao diện động** (`src/lib/data/skill-hub.ts`): trang
+  Listening/Reading giờ **sắp xếp lại thứ tự Part** theo độ yếu (Part có đủ
+  mẫu + độ chính xác thấp nổi lên đầu), thay vì thứ tự cố định Part1→Part7
+  — đúng hướng "sắp xếp lại, không ẩn hẳn" đã chốt ở mục 12.2 điểm 4. Part
+  chưa đủ dữ liệu giữ nguyên thứ tự gốc ở cuối danh sách.
+- **Coaching thời gian thực** (`src/components/exam/exam-runner.tsx`): cảnh
+  báo toast một lần/câu nếu học viên ngồi quá 3 lần `targetSeconds` của
+  Part đó trên 1 câu (VD Part 5 mục tiêu 20s → cảnh báo ở mốc 60s), gợi ý
+  chọn đáp án tốt nhất và chuyển tiếp — không chặn thao tác làm bài, không
+  lặp lại cảnh báo cho cùng 1 câu.
+- **Đính chính quan trọng** (mục 12.1 điểm 5, mục 12.2 điểm 3): nhận định
+  ban đầu "chưa có cơ chế Premium" là **sai** — hệ thống Free/Pro
+  (`isPro()`, `mentor-access.ts`, trang `/pricing`, VNPay) đã chạy thật.
+  Đã sửa lại tài liệu cho đúng. Anh vẫn chọn để phễu thương mại lại sau —
+  quyết định đó giữ nguyên, chỉ có nhận định kỹ thuật ban đầu là sai, không
+  phải quyết định sai.
+- **Đã kiểm tra sạch**: `npx tsc --noEmit` không lỗi mới (chỉ còn đúng lỗi
+  giả `LayoutProps` đã biết), `npx eslint .` toàn repo: vẫn đúng 5 vấn đề
+  cũ không liên quan (đã có từ trước phiên này), không phát sinh gì mới.
+
+**Vẫn chưa làm** (nằm ngoài phạm vi "luồng dữ liệu" anh yêu cầu lần này,
+chưa có yêu cầu cụ thể):
+- Hồ sơ bàn giao dạng JSON có cấu trúc thật (vẫn là text trong
+  `MentorMemory.summary` — mục 11.5 vẫn đúng).
+- UI hiển thị trực quan bản đồ nhiệt (heatmap chart/màu sắc) — endpoint đã
+  có dữ liệu, chưa có màn hình nào gọi tới và vẽ ra.
+- Phễu thương mại (cố ý bỏ qua theo yêu cầu).
 
 ### 11.6 Anh nói "chạy tiếp" — đã gắn nhãn thật cho seed-data (2026-09-22)
 
