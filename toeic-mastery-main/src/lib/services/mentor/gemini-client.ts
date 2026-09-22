@@ -19,8 +19,14 @@ const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models
  * unlike Anthropic's Sonnet/Haiku split, there's no meaningful cost win
  * from downgrading further for memory summarization. Check
  * https://ai.google.dev/gemini-api/docs/models for what's currently
- * free-tier eligible if this stops working. */
-export const DEFAULT_MODEL = "gemini-2.0-flash";
+ * free-tier eligible if this stops working — Google retires model ids
+ * faster than this comment gets updated (2.0-flash and 2.5-flash both
+ * 404 "no longer available to new users" as of 2026-09). Deliberately the
+ * full "-flash" tier, not "-flash-lite": lite variants have been seen
+ * rejecting `thinkingConfig` outright with a 400 INVALID_ARGUMENT (see
+ * streamMentorReply's generationConfig below), so swapping this back to a
+ * lite model needs re-verifying that first. */
+export const DEFAULT_MODEL = "gemini-3.5-flash";
 
 interface GeminiStreamChunk {
   candidates?: { content?: { parts?: { text?: string }[] } }[];
@@ -96,11 +102,11 @@ export async function* streamMentorReply(params: {
         maxOutputTokens: params.maxTokens ?? 1024,
         // 2.5+/3.x model lines default "thinking" (hidden chain-of-thought
         // tokens generated before the visible reply) to ON — great for hard
-        // reasoning tasks, pure latency overhead for a chat mentor that just
-        // needs a direct answer. Explicitly zeroing the budget keeps replies
-        // fast regardless of which model MENTOR_CHAT_MODEL ends up pointing
-        // at (2.0-flash silently ignores this field — it has no thinking
-        // mode to begin with).
+        // reasoning tasks, ~5-8x latency for a chat mentor that just needs a
+        // direct answer (measured ~40s vs ~7-8s on the same prompt). NOTE:
+        // "-flash-lite" model ids have been observed rejecting this field
+        // with 400 INVALID_ARGUMENT rather than ignoring it — don't repoint
+        // MENTOR_CHAT_MODEL at a lite variant without checking that first.
         thinkingConfig: { thinkingBudget: 0 },
       },
     }),
