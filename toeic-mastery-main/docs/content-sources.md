@@ -13,21 +13,24 @@ situations the real TOEIC uses (office, meetings, travel, airport, hotel,
 shipping, HR, manufacturing, etc.), but every sentence, dialogue, passage,
 and explanation was authored fresh for this seed set.
 
-Known gaps in the seed set, intentionally left for a real deployment to
-fill in:
+Known gaps in the checked-in seed set (the `prisma/seed-data/*.ts` files
+themselves never carry `imageUrl`/`audioUrl` — grep confirms it), but
+**closed in the live database** as of 2026-09-22: an admin has since
+attached real Part 1 photos and real listening audio directly via
+`/admin/questions` on the running site, on top of the seed rows. So the
+gap only applies to a *fresh* `prisma db seed` re-run, not to the current
+production data.
 
-- **Part 1 photographs**: no stock photos are bundled. Each seeded Part 1
-  question ships with a `sceneNote` (see `prisma/seed-data/part1.ts`)
-  describing what an appropriate photo should show — an admin should
-  attach a real photo via `/admin/questions` once one is sourced (royalty-
-  free stock photography, or an original photo taken for the project).
-- **Listening audio**: no `.mp3` files are bundled (this environment can't
-  produce studio audio). Every listening question carries a full
-  `transcript`, and the player automatically falls back to the browser's
-  Web Speech API to read it aloud when `audioUrl` is empty. For a
-  production-quality experience, record or license real narration and
-  upload it to the `question-media` Supabase Storage bucket, then set
-  `audioUrl` on the question/passage via `/admin/questions`.
+- **Part 1 photographs**: seed rows only carry a `sceneNote` (see
+  `prisma/seed-data/part1.ts`) describing what the photo should show — no
+  `imageUrl` in the seed script. The live DB now has real photos attached
+  per question via `/admin/questions` (royalty-free stock or original).
+  Re-seeding from scratch would wipe that and need the photos re-attached.
+- **Listening audio**: seed rows ship with a full `transcript` but no
+  `.mp3`; the player falls back to the browser's Web Speech API only when
+  `audioUrl` is empty. The live DB now has real narration uploaded to the
+  `question-media` Supabase Storage bucket with `audioUrl` set per
+  question/passage. Same caveat: a from-scratch reseed would lose this.
 - **Question volume**: the seed set covers the *minimum* bar the spec
   called for (30 Part 5, ~12 Part 6, 15 Part 7, 10 Part 3 conversations,
   4 Part 4 talks, 6 Part 1, 10 Part 2) rather than a full 200-question ×

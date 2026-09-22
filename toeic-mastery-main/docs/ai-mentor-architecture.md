@@ -1039,11 +1039,13 @@ Hai lựa chọn, anh/chị chọn 1:
   đúng format `prisma/seed-data/*.ts`, hoặc dùng "Admin → Câu hỏi → Import
   JSON" (không cần đợi mình) — ưu tiên phủ đúng các Part/nhãn sẽ chọn làm
   "cốt lõi" ở mục 10.2.
-- **Ảnh Part 1 thật + audio Listening thật** — gap đã ghi sẵn trong
-  `docs/content-sources.md`, chỉ nêu lại vì Gate Test chắc chắn có câu Part
-  1/Listening: nếu muốn Gate Test dùng ảnh/audio thật thay vì
-  text-to-speech tạm thời, cần gửi hoặc cho phép lấy từ nguồn free đã duyệt
-  (Unsplash/Pexels/Pixabay).
+- ~~Ảnh Part 1 thật + audio Listening thật~~ — **đã có, không còn treo**
+  (xác nhận 2026-09-22): database live đã được admin gắn ảnh/audio thật
+  qua `/admin/questions`, ngoài seed script. Gate Test dùng thẳng dữ liệu
+  live nên không bị ảnh hưởng. Xem cập nhật trong `docs/content-sources.md`.
+  Lưu ý duy nhất: seed script (`prisma/seed-data/*.ts`) tự nó vẫn KHÔNG có
+  `imageUrl`/`audioUrl` — nếu sau này có ai chạy `prisma db seed` lại từ
+  đầu trên một DB trống, ảnh/audio live sẽ không tự có, cần gắn lại tay.
 
 ### 10.6 Chốt quyết định (2026-09-22) — anh xác nhận nội bộ team đã thống nhất
 
@@ -1084,4 +1086,5 @@ sửa `onboarding.ts`.
 
 **Vẫn còn treo, chưa có gì để chốt** (mục 10.5 chưa nhận được):
 Cấp A + luồng AI Mentor tổng thể, câu hỏi mới cho ngân hàng (kho hiện tại
-vẫn ở mức seed tối thiểu), ảnh Part 1 + audio Listening thật.
+vẫn ở mức seed tối thiểu). Ảnh Part 1 + audio Listening thật **đã xác nhận
+có sẵn trên live** (2026-09-22), gỡ khỏi danh sách còn thiếu.
