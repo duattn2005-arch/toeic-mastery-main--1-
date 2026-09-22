@@ -52,7 +52,7 @@ async function recordSkillOutcome(userId: string, dimensionType: SkillDimensionT
 export async function recordAttemptOutcomes(userId: string, attemptId: string): Promise<void> {
   const answers = await db.attemptAnswer.findMany({
     where: { attemptId, isCorrect: { not: null } },
-    select: { isCorrect: true, question: { select: { part: true, grammarTopicSlug: true } } },
+    select: { isCorrect: true, question: { select: { part: true, grammarTopicSlug: true, strategicLabelSlugs: true } } },
   });
 
   for (const answer of answers) {
@@ -60,6 +60,11 @@ export async function recordAttemptOutcomes(userId: string, attemptId: string): 
     await recordSkillOutcome(userId, "PART", answer.question.part, isCorrect);
     if (answer.question.grammarTopicSlug) {
       await recordSkillOutcome(userId, "GRAMMAR_TOPIC", answer.question.grammarTopicSlug, isCorrect);
+    }
+    // Cấp A "nhãn chiến lược" (docs/ai-mentor-architecture.md mục 11) — a
+    // question can carry several, unlike grammarTopicSlug's single value.
+    for (const slug of answer.question.strategicLabelSlugs) {
+      await recordSkillOutcome(userId, "STRATEGIC_LABEL", slug, isCorrect);
     }
   }
 }
@@ -70,7 +75,7 @@ export async function recordAttemptOutcomes(userId: string, attemptId: string): 
 export async function recordMentorTestOutcomes(userId: string, mentorTestId: string): Promise<void> {
   const questions = await db.mentorTestQuestion.findMany({
     where: { mentorTestId, isCorrect: { not: null } },
-    select: { isCorrect: true, question: { select: { part: true, grammarTopicSlug: true } } },
+    select: { isCorrect: true, question: { select: { part: true, grammarTopicSlug: true, strategicLabelSlugs: true } } },
   });
 
   for (const q of questions) {
@@ -78,6 +83,9 @@ export async function recordMentorTestOutcomes(userId: string, mentorTestId: str
     await recordSkillOutcome(userId, "PART", q.question.part, isCorrect);
     if (q.question.grammarTopicSlug) {
       await recordSkillOutcome(userId, "GRAMMAR_TOPIC", q.question.grammarTopicSlug, isCorrect);
+    }
+    for (const slug of q.question.strategicLabelSlugs) {
+      await recordSkillOutcome(userId, "STRATEGIC_LABEL", slug, isCorrect);
     }
   }
 }

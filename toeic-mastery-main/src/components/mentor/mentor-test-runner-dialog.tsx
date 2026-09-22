@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 
@@ -235,11 +236,22 @@ export function MentorTestRunnerDialog({
         )}
 
         {test && !result && alreadyGraded && (
-          <div className="flex flex-col items-center gap-2 py-6 text-center">
-            <p className="text-sm text-muted-foreground">Bài kiểm tra này đã được nộp trước đó.</p>
-            {test.score !== null && (
-              <p className="text-sm font-medium">{Math.round(test.score * 100)}% câu đúng</p>
+          <div className="flex flex-col items-center gap-3 py-6 text-center">
+            {test.status === "PASSED" ? (
+              <CheckCircle2 className="size-12 text-success" />
+            ) : (
+              <XCircle className="size-12 text-destructive" />
             )}
+            <p className="text-sm text-muted-foreground">Bài kiểm tra này đã được nộp trước đó.</p>
+            {test.score !== null && <p className="text-lg font-semibold">{Math.round(test.score * 100)}% câu đúng</p>}
+            <p className="text-sm text-muted-foreground">
+              {test.status === "PASSED"
+                ? "Bạn đã qua bài này — xem lộ trình học để biết bước tiếp theo."
+                : "Chưa đạt ngưỡng cần thiết lần đó — hãy nhắn AI Mentor để nhận một bài kiểm tra khác sau khi ôn lại, hoặc xem lộ trình học hiện tại."}
+            </p>
+            <Button asChild variant="secondary" size="sm" className="mt-1">
+              <Link href="/mentor/path">Xem lộ trình học</Link>
+            </Button>
           </div>
         )}
 
@@ -322,10 +334,16 @@ export function MentorTestRunnerDialog({
             ) : (
               <p className="text-sm text-muted-foreground">
                 {result.passed
-                  ? "Chúc mừng! Bạn đã mở khóa mức độ khó hơn cho phần này."
+                  ? "Chúc mừng! Bạn đã mở khóa mức độ khó hơn cho phần này — lộ trình học của bạn đã được cập nhật theo dữ liệu mới nhất."
                   : "Chưa đạt ngưỡng cần thiết — hãy nhắn cho AI Mentor để nhận một bài kiểm tra khác sau khi ôn lại."}
               </p>
             )}
+            {/* Mọi lượt nộp bài (dù đạt hay chưa) đều vừa cập nhật lộ trình
+                (xem refreshLearningPathForUser trong submit route) — cho
+                người học một lối đi tiếp thay vì chỉ đóng dialog rồi hết. */}
+            <Button asChild variant="secondary" size="sm" className="mt-1">
+              <Link href="/mentor/path">Xem lộ trình học</Link>
+            </Button>
           </div>
         )}
 

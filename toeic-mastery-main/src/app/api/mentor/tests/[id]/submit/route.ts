@@ -5,6 +5,7 @@ import { recordMentorTestOutcomes, unlockNextDifficulty } from "@/lib/services/m
 import { ScoreCalculator } from "@/lib/services/score-calculator";
 import { LISTENING_PARTS } from "@/lib/constants/toeic";
 import { generateLearningPath } from "@/lib/services/mentor/learning-path-generator";
+import { refreshLearningPathForUser } from "@/lib/services/mentor/learning-path-replanner";
 import {
   evaluateLevelGate,
   recordLevelAdvance,
@@ -123,6 +124,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       console.error("unlockNextDifficulty failed", err)
     );
   }
+
+  // Every MentorTest submission moves SkillMastery (recordMentorTestOutcomes
+  // above), so the "sống" (alive) LearningPath's still-LOCKED upcoming days
+  // should reflect that immediately — previously only a full Attempt submit
+  // (attempts/[attemptId]/submit/route.ts) triggered this, so passing/
+  // failing an AI Mentor quiz (including a LEVEL_GATE Gate Test) never
+  // visibly changed anything for the learner afterward. Fire-and-forget,
+  // same as the calls above — a failure here must never fail the test
+  // submission itself.
+  void refreshLearningPathForUser(profile.id).catch((err) => console.error("refreshLearningPathForUser failed", err));
 
   let estimatedScore: { listening: number; reading: number; total: number } | null = null;
   let onboardingCompleted = false;

@@ -5,7 +5,11 @@ import { TEST_PARTS, PART_META } from "@/lib/constants/toeic";
 import type { Prisma } from "@/generated/prisma/client";
 import type { SkillDimensionType, Difficulty, TestPart } from "@/generated/prisma/enums";
 
-const DEFAULT_QUESTION_COUNT = 5;
+/** Was 5 — bumped now that grammar topics carry 14-15 questions each
+ * (docs/ai-mentor-architecture.md mục 11.7), giving real headroom against
+ * RECENT_EXCLUSION_DAYS without collapsing to a handful of questions on a
+ * learner's second attempt at the same topic within two weeks. */
+const DEFAULT_QUESTION_COUNT = 8;
 /** Also reused by level-gate.ts so a Gate Test never resurfaces a question
  * the learner just answered in normal practice. */
 export const RECENT_EXCLUSION_DAYS = 14;

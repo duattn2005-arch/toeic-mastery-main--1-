@@ -39,10 +39,11 @@ async function startLevelGateTest(): Promise<{ mentorTestId: string; questionCou
 /**
  * Shown once onboarding is past its first-run wizard (see
  * MentorPageClient's showLevelGate) — reports progress toward the next
- * mentorLevel gate (see docs/ai-mentor-architecture.md mục 10) and lets the
- * learner start it once eligible. Renders nothing once past Cấp I (Cấp A's
- * gate isn't specced yet) or while still loading, so it never flashes an
- * empty card.
+ * mentorLevel gate (see docs/ai-mentor-architecture.md mục 10-11; both
+ * BEGINNER→INTERMEDIATE and INTERMEDIATE→ADVANCED use this same card and
+ * API, `asGateableLevel` in the API route covers both). Renders nothing
+ * once mentorLevel is already ADVANCED (no further gate exists) or while
+ * still loading, so it never flashes an empty card.
  */
 export function MentorLevelGateCard() {
   const router = useRouter();

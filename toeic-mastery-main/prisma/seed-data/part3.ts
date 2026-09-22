@@ -142,4 +142,64 @@ export const PART3_CONVERSATIONS: SeedConversation[] = [
       { prompt: "What does the man suggest doing?", options: ["Conducting another survey", "Featuring the results in a newsletter", "Reducing flexible hours", "Interviewing employees again"], correctIndex: 1, explanationVi: "Ông ấy đề xuất nêu bật kết quả này trong bản tin nội bộ tiếp theo." },
     ],
   },
+  {
+    title: "Booking a conference room",
+    transcript:
+      "W: Hi, I need to book the large conference room for a client presentation next Wednesday.\nM: Let me check the calendar... it's open in the morning, but it's taken after 1 p.m.\nW: Morning works perfectly. Can you reserve it from 10 to 11:30?\nM: Sure, I'll send you a confirmation email shortly.",
+    questions: [
+      { prompt: "What does the woman want to do?", options: ["Cancel a meeting", "Book a conference room", "Interview a candidate", "Order lunch for a meeting"], correctIndex: 1, explanationVi: "Cô ấy muốn đặt phòng họp lớn cho buổi thuyết trình với khách hàng." },
+      { prompt: "When is the room available in the morning?", options: ["9 to 10", "10 to 11:30", "11:30 to 1", "All morning"], correctIndex: 1, explanationVi: "Cô ấy yêu cầu đặt phòng từ 10 giờ đến 11:30." },
+      { prompt: "What will the man do next?", options: ["Call the client", "Send a confirmation email", "Cancel the reservation", "Move the meeting"], correctIndex: 1, explanationVi: "Ông ấy sẽ gửi email xác nhận đặt phòng." },
+    ],
+  },
+  {
+    title: "Discussing a new hire's onboarding",
+    transcript:
+      "M: Have you set up a desk and laptop for the new hire starting Monday?\nW: The desk is ready, but IT still needs to configure the laptop.\nM: Can they have it ready by Friday?\nW: I'll check with them today and let you know.",
+    questions: [
+      { prompt: "What are the speakers preparing for?", options: ["A client visit", "A new employee's first day", "An office move", "A company audit"], correctIndex: 1, explanationVi: "Họ đang chuẩn bị cho ngày đầu tiên đi làm của nhân viên mới." },
+      { prompt: "What still needs to be done?", options: ["The desk needs cleaning", "The laptop needs to be configured", "The badge needs printing", "The parking spot needs assigning"], correctIndex: 1, explanationVi: "IT vẫn cần cấu hình lại máy tính xách tay." },
+      { prompt: "What will the woman do today?", options: ["Order a new laptop", "Check with IT", "Interview the candidate", "Cancel the onboarding"], correctIndex: 1, explanationVi: "Cô ấy sẽ liên hệ với bộ phận IT hôm nay." },
+    ],
+  },
+  {
+    title: "Handling a billing discrepancy",
+    transcript:
+      "W: I noticed the invoice from Right Supplies is $200 higher than our quote.\nM: That's strange. Let me pull up the original quote and compare.\nW: Thanks. If it's an error, we should contact them before we pay.\nM: Agreed — I'll call their accounts department this afternoon.",
+    questions: [
+      { prompt: "What problem does the woman notice?", options: ["A late delivery", "A billing discrepancy", "A missing shipment", "A wrong address"], correctIndex: 1, explanationVi: "Cô ấy phát hiện hóa đơn cao hơn báo giá ban đầu $200." },
+      { prompt: "What will the man do first?", options: ["Pay the invoice", "Compare it with the original quote", "Cancel the order", "Contact the supplier immediately"], correctIndex: 1, explanationVi: "Ông ấy sẽ so sánh hóa đơn với báo giá gốc trước." },
+      { prompt: "When will the man call the supplier?", options: ["This morning", "This afternoon", "Tomorrow", "Next week"], correctIndex: 1, explanationVi: "Ông ấy sẽ gọi cho phòng kế toán của nhà cung cấp vào chiều nay." },
+    ],
+  },
+  {
+    title: "Planning an office renovation",
+    transcript:
+      "M: The contractor says the renovation will take about three weeks.\nW: Three weeks? We'll need to find temporary workspace for the design team.\nM: I already asked about the fourth-floor conference room — it's available.\nW: Great, let's move them there starting Monday.",
+    questions: [
+      { prompt: "What are the speakers discussing?", options: ["A hiring plan", "An office renovation", "A budget cut", "A client complaint"], correctIndex: 1, explanationVi: "Họ đang bàn về việc cải tạo văn phòng." },
+      { prompt: "How long will the renovation take?", options: ["One week", "Two weeks", "Three weeks", "A month"], correctIndex: 2, explanationVi: "Nhà thầu cho biết việc cải tạo sẽ mất khoảng ba tuần." },
+      { prompt: "Where will the design team work temporarily?", options: ["A rented office", "The fourth-floor conference room", "Home", "The lobby"], correctIndex: 1, explanationVi: "Đội thiết kế sẽ làm việc tạm tại phòng họp tầng bốn." },
+    ],
+  },
+  {
+    title: "Discussing a trade show booth",
+    transcript:
+      "W: Have we finalized the design for our booth at the trade show?\nM: Almost — the graphics team just needs approval on the banner colors.\nW: Send them to me today; I want to approve before the printer's deadline.\nM: Will do. The deadline is this Friday.",
+    questions: [
+      { prompt: "What are the speakers preparing for?", options: ["A product recall", "A trade show booth", "A job fair", "An office party"], correctIndex: 1, explanationVi: "Họ đang chuẩn bị cho gian hàng tại hội chợ thương mại." },
+      { prompt: "What does the woman want to do today?", options: ["Meet the printer", "Approve the banner colors", "Redesign the booth", "Cancel the order"], correctIndex: 1, explanationVi: "Cô ấy muốn duyệt màu sắc banner ngay hôm nay." },
+      { prompt: "When is the printer's deadline?", options: ["Today", "Tomorrow", "This Friday", "Next Monday"], correctIndex: 2, explanationVi: "Hạn chót của bên in là thứ Sáu tuần này." },
+    ],
+  },
+  {
+    title: "Coordinating a client dinner",
+    transcript:
+      "M: I made a reservation for the client dinner at 7, but I haven't confirmed the number of guests.\nW: I'll check with the client's office today; I think it's six people.\nM: Let me know as soon as you find out so I can update the reservation.\nW: No problem, I'll call them right after lunch.",
+    questions: [
+      { prompt: "What is the man unsure about?", options: ["The restaurant location", "The number of guests", "The dinner time", "The menu"], correctIndex: 1, explanationVi: "Ông ấy chưa chắc chắn về số lượng khách tham dự." },
+      { prompt: "How many guests does the woman think are coming?", options: ["Four", "Five", "Six", "Eight"], correctIndex: 2, explanationVi: "Cô ấy nghĩ có sáu người sẽ tham dự." },
+      { prompt: "When will the woman call the client's office?", options: ["Before lunch", "Right after lunch", "Tomorrow morning", "After the dinner"], correctIndex: 1, explanationVi: "Cô ấy sẽ gọi cho văn phòng khách hàng ngay sau bữa trưa." },
+    ],
+  },
 ];

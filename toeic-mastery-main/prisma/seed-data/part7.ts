@@ -4,6 +4,12 @@ export interface SeedPart7Question {
   correctIndex: number;
   explanationVi: string;
   evidenceText?: string;
+  /** Cấp A "nhãn chiến lược" slugs (see seed-data/strategic-labels.ts) —
+   * only set on questions that genuinely require the strategy in question
+   * (inference, NOT-stated, cross-document synthesis...), never forced onto
+   * a plain detail-lookup question just to have coverage. Most questions in
+   * this file legitimately have none. */
+  strategicLabelSlugs?: string[];
 }
 
 export interface SeedPart7Passage {
@@ -33,6 +39,7 @@ export const PART7_PASSAGES: SeedPart7Passage[] = [
         correctIndex: 1,
         explanationVi: "Thông báo nói về việc ngắt nước để bảo trì đường ống.",
         evidenceText: "The water supply to the building will be shut off on Saturday, June 14",
+        strategicLabelSlugs: ["authors-purpose"],
       },
       {
         prompt: "How long will the water be turned off?",
@@ -68,6 +75,7 @@ export const PART7_PASSAGES: SeedPart7Passage[] = [
         correctIndex: 1,
         explanationVi: "Quảng cáo về đợt giảm giá đồ nội thất văn phòng.",
         evidenceText: "enjoy up to 40% off all desks, chairs, and storage cabinets",
+        strategicLabelSlugs: ["authors-purpose"],
       },
       {
         prompt: "How can customers receive free delivery?",
@@ -123,6 +131,7 @@ export const PART7_PASSAGES: SeedPart7Passage[] = [
         options: ["inform", "prevent", "delay", "ignore"],
         correctIndex: 0,
         explanationVi: "'Notify' nghĩa là thông báo cho ai đó, gần nghĩa nhất với 'inform'.",
+        strategicLabelSlugs: ["vocabulary-in-context"],
       },
     ],
   },
@@ -177,6 +186,14 @@ export const PART7_PASSAGES: SeedPart7Passage[] = [
         correctIndex: 1,
         explanationVi: "Đơn hàng dự kiến đến trong vòng ba ngày làm việc sau khi gửi đi.",
         evidenceText: "to arrive at your location within three business days after that",
+      },
+      {
+        prompt: "Based on both emails, approximately how many days after the order was originally placed will it most likely arrive, according to North Supply's revised estimate?",
+        options: ["About 12 days", "About 15 days", "About 20 days", "About 27 days"],
+        correctIndex: 2,
+        explanationVi:
+          "Phải kết hợp cả hai email: đơn đặt ngày 3/5 (email 1), North Supply dự kiến gửi hàng ngày 20/5 và đến nơi trong vòng 3 ngày làm việc sau đó (email 2) — tổng cộng khoảng 20 ngày kể từ lúc đặt hàng, không email nào một mình cho đủ dữ kiện.",
+        strategicLabelSlugs: ["double-triple-passage-synthesis"],
       },
     ],
   },
@@ -275,6 +292,7 @@ export const PART7_PASSAGES: SeedPart7Passage[] = [
         correctIndex: 1,
         explanationVi: "Bài báo nói về chương trình xe đạp chia sẻ mới của thành phố.",
         evidenceText: "The city officially launched its new bike-share program last week",
+        strategicLabelSlugs: ["authors-purpose"],
       },
       {
         prompt: "How do riders unlock a bicycle?",
@@ -330,6 +348,7 @@ export const PART7_PASSAGES: SeedPart7Passage[] = [
         options: ["The meeting will last one hour", "They will have time to finish preparing", "Finance needs one more hour", "The flight is delayed by an hour"],
         correctIndex: 1,
         explanationVi: "Duy có ý rằng họ sẽ có một giờ để hoàn thiện mọi thứ trước cuộc họp.",
+        strategicLabelSlugs: ["inference"],
       },
     ],
   },
@@ -384,6 +403,19 @@ export const PART7_PASSAGES: SeedPart7Passage[] = [
         explanationVi: "Cô ấy cho biết có thể phỏng vấn vào bất kỳ buổi chiều trong tuần nào.",
         evidenceText: "I am available for an interview any weekday afternoon",
       },
+      {
+        prompt: "Does Thanh Hoang's application meet the experience requirement stated in the job posting?",
+        options: [
+          "No, she has less experience than required",
+          "Yes, her experience exceeds the minimum required",
+          "The posting does not specify an experience requirement",
+          "She has exactly the minimum required experience",
+        ],
+        correctIndex: 1,
+        explanationVi:
+          "Tin tuyển dụng yêu cầu tối thiểu hai năm kinh nghiệm; email ứng tuyển nêu Thanh Hoang có ba năm kinh nghiệm — vượt yêu cầu. Phải đối chiếu cả hai văn bản mới trả lời được, không có văn bản nào tự nêu câu trả lời.",
+        strategicLabelSlugs: ["double-triple-passage-synthesis"],
+      },
     ],
   },
   {
@@ -414,6 +446,7 @@ export const PART7_PASSAGES: SeedPart7Passage[] = [
         correctIndex: 1,
         explanationVi: "Hội thảo tập trung vào kỹ năng viết trong môi trường công việc.",
         evidenceText: "a half-day workshop on effective business writing",
+        strategicLabelSlugs: ["authors-purpose"],
       },
       {
         prompt: "How much did Ms. Tran pay for the workshop?",
@@ -442,6 +475,14 @@ export const PART7_PASSAGES: SeedPart7Passage[] = [
         correctIndex: 1,
         explanationVi: "Hạn hủy để được hoàn tiền đầy đủ là ngày 4 tháng 8.",
         evidenceText: "If you need to cancel, please notify us by August 4 for a full refund",
+      },
+      {
+        prompt: "According to the three documents, which of the following is NOT mentioned as something provided to or needed by participants?",
+        options: ["Course materials", "Free parking", "A certificate of completion", "Lunch"],
+        correctIndex: 2,
+        explanationVi:
+          "Tài liệu học và bữa trưa được nêu ở tờ rơi, bãi đỗ xe miễn phí được nêu ở thông báo nhắc nhở — nhưng không văn bản nào trong ba văn bản đề cập đến chứng chỉ hoàn thành khóa học. Phải đọc cả ba văn bản mới loại trừ được đáp án đúng.",
+        strategicLabelSlugs: ["not-stated", "double-triple-passage-synthesis"],
       },
     ],
   },
@@ -532,6 +573,7 @@ export const PART7_PASSAGES: SeedPart7Passage[] = [
         correctIndex: 1,
         explanationVi: "Vị trí này chủ yếu thiết kế các ấn phẩm hình ảnh cho chiến dịch khách hàng.",
         evidenceText: "You'll create visual assets for client campaigns",
+        strategicLabelSlugs: ["authors-purpose"],
       },
       {
         prompt: "How much agency experience does the posting require?",
@@ -591,6 +633,7 @@ export const PART7_PASSAGES: SeedPart7Passage[] = [
         correctIndex: 1,
         explanationVi: "Bản ghi nhớ đề xuất chính sách làm việc từ xa mới.",
         evidenceText: "We are considering a new policy that would allow eligible employees to work from home",
+        strategicLabelSlugs: ["authors-purpose"],
       },
       {
         prompt: "What concern does Chau Pham raise?",
@@ -619,6 +662,19 @@ export const PART7_PASSAGES: SeedPart7Passage[] = [
         correctIndex: 1,
         explanationVi: "Trưởng nhóm sẽ xác nhận ngày làm việc chung tại văn phòng cho nhóm mình.",
         evidenceText: "Team leads will confirm their team's shared day",
+      },
+      {
+        prompt: "How did the final policy respond to the concern Chau Pham raised in her email?",
+        options: [
+          "It rejected her suggestion",
+          "It adopted her suggestion into the final policy",
+          "It was not addressed in the final policy",
+          "It required all teams to work in-office five days a week",
+        ],
+        correctIndex: 1,
+        explanationVi:
+          "Chau đề xuất mỗi nhóm có một ngày làm việc chung tại văn phòng để không mất thời gian hợp tác; thông báo chính sách cuối cùng áp dụng đúng đề xuất này. Cần liên kết email của Chau với thông báo chính sách cuối mới thấy được mối quan hệ nhân quả.",
+        strategicLabelSlugs: ["cross-paragraph-cause-effect", "double-triple-passage-synthesis"],
       },
     ],
   },

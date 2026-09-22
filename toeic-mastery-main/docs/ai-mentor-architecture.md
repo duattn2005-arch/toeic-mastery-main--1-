@@ -1158,3 +1158,351 @@ liệu):
 - Cấp I→A tái dùng đúng engine này (`GateableLevel` đã có sẵn nhánh
   INTERMEDIATE→ADVANCED) nhưng nhãn cốt lõi cho Cấp A thì chưa - chờ spec
   Cấp A anh hẹn gửi sau.
+
+## 11. Giai đoạn 11 — Cấp A (Advanced): nhãn kép, "dấu vân tay lỗi" & bàn giao thi thật
+
+> Trạng thái: **Đề xuất, chờ duyệt.** Chưa migrate DB thêm, chưa viết code
+> mới cho phần này. Nguồn: tài liệu spec Cấp A anh gửi (2026-09-22), đối
+> chiếu với `level-gate.ts`/schema đã có sẵn từ mục 10 (Cấp B/I).
+
+### 11.0 Phần lớn khung đã có sẵn — không phải xây từ đầu
+
+Đọc kỹ spec Cấp A thì thấy engine B→I ở mục 10 đã được viết đủ tổng quát để
+tái dùng gần hết cho I→A — bản thân `level-gate.ts` đã có `GateableLevel =
+"BEGINNER" | "INTERMEDIATE"` và `GATE_TARGET_LEVEL.INTERMEDIATE =
+"ADVANCED"`, tức là cơ chế thi Gate lên Cấp A **đã chạy được kỹ thuật**, chỉ
+thiếu đúng bộ nhãn/tín hiệu Cấp A cần:
+
+| Khái niệm trong spec Cấp A | Đã có, tái dùng thẳng |
+|---|---|
+| "Nhãn kép" (kiến thức + chiến lược) | `StrategicLabel` model + `Question.strategicLabelSlugs` (migration `20260922140300`) + `scoreByLabel()` đã bucket riêng `STRATEGIC_LABEL` (`level-gate.ts:366`) và `questionWhereForLabel` đã lọc câu theo `strategicLabelSlugs` (`level-gate.ts:202`) — nhưng xem 11.1 điểm 1, cách ghép "kép" hiện tại chưa đúng 100% ý spec |
+| "Nhật ký quyết định" (đáp án đầu/cuối, answer-switching) | `AttemptAnswer.initialSelectedLabel/answerChangeCount/firstAnsweredAt` — **đã ghi thật** qua `attempts/[id]/sync/route.ts` (migration `20260922150000`, code cùng ngày hôm nay) |
+| "Thời gian phản hồi theo loại câu" | `AttemptAnswer.timeSpentSec` — cũng đã ghi thật (increment mỗi lần sync) qua route trên |
+| So sánh ngưỡng 80% / 50-79% / <50% | `evaluateLevelGate()` 3 nhánh ADVANCE/REMEDIATE/RESTART — dùng thẳng, không viết lại, chỉ cần gọi với nhãn Cấp A thay vì PART/GRAMMAR_TOPIC |
+| Đủ 200 câu + ≥15 câu/nhãn mới phân cấp | `isEligibleForLevelGate()` — `MIN_TOTAL_ATTEMPTED.INTERMEDIATE=200`, `MIN_SAMPLE_PER_LABEL.INTERMEDIATE=15` đã đúng số spec Cấp A yêu cầu |
+| Học bù đúng 1-3 nhãn yếu, không học lại từ đầu | `generateRemediationTest()` — đúng triết lý "top nhãn yếu nhất + vài câu ôn tổng quát các nhãn khác" spec mô tả ở Kịch bản 1 |
+| Hồ sơ bàn giao (level, điểm, nhãn mạnh/yếu, lưu ý) | `recordLevelAdvance()` đã ghi hồ sơ dạng text vào `MentorMemory.summary` cho B→I — cùng cơ chế dùng lại cho I→A, chỉ cần format thêm field theo đúng cấu trúc mục X của spec |
+| Mock Test toàn phần 200 câu, kiểm soát thời gian | `Test`/`Attempt` model đã có sẵn (`durationMinutes: 120`, `totalQuestions: 200`, xem `schema.prisma:451-452`) — README xác nhận "Mock Test 01" đã chạy đủ 7 Part, không cần bảng mới |
+
+### 11.1 Cái thực sự còn thiếu
+
+1. **`getCoreLabels("INTERMEDIATE")` chưa trả nhãn `STRATEGIC_LABEL` nào** —
+   hiện chỉ trả PART (7 part) + GRAMMAR_TOPIC (15 topic), nên Gate Test lên
+   Cấp A hiện tại (nếu chạy ngay bây giờ) sẽ hoàn toàn bỏ qua nhãn chiến
+   lược — tức là chưa dùng "nhãn kép" thật sự. Cần sửa để thêm
+   `STRATEGIC_LABEL` vào tập nhãn cốt lõi Cấp A — xem câu hỏi mở #1 dưới
+   đây về việc ghép nhãn thế nào.
+2. **`MentorTestQuestion` (Gate Test/Remediation/Mock qua MentorTest) chưa
+   route nào ghi timing thật** — cột `timeSpentSec/firstAnsweredAt/
+   initialSelectedLabel/answerChangeCount` đã có trong schema
+   (`20260922150000`) nhưng chỉ `AttemptAnswer` được `attempts/[id]/sync`
+   ghi; `mentor/tests/[id]/submit/route.ts` không đụng các cột này (grep xác
+   nhận). Đường cong sức bền/ảo giác tự tin của spec cần dữ liệu này **trên
+   chính bài Gate A Test/Mock Test**, không chỉ trên luyện tập rời rạc —
+   xem câu hỏi mở #4.
+3. **Điểm mục tiêu theo từng Part** (VD "Listening ≥ 450, Reading ≥ 420")
+   — `Profile` hiện chỉ có `currentScore`/`targetScore` tổng, không có
+   field cho từng Part/kỹ năng con. Cần thêm (bảng mới hoặc JSON field).
+4. **"Đường cong sức bền nhận thức" (Cognitive Stamina Curve)** — chưa có
+   hàm nào chia một `Attempt` thành khối 30 phút và so độ chính xác/tốc độ
+   giữa các khối. Không cần bảng mới (dùng `AttemptAnswer.answeredAt` +
+   `timeSpentSec` đã ghi), chỉ cần một hàm tính mới — comment trong
+   `level-gate.ts`/schema đã nhắc tới file `advanced-readiness.ts` nhưng
+   file này **chưa tồn tại**, chỉ mới là dự định.
+5. **Phát hiện "ảo giác tự tin" + chế độ "dừng lại và cam kết"** (buộc chọn
+   đáp án trong 10 giây đầu) — là tương tác UI mới trên màn hình luyện tập,
+   chưa có trong `exam-runner.tsx`.
+6. **Ngưỡng lọc nhiễu/ảo giác tự tin cụ thể cho Cấp A** — spec cho ví dụ
+   theo từng loại câu (45s/câu suy luận Part 7, 25s/câu Part 3 ý định...)
+   nhưng chưa có bảng đóng đầy đủ cho mọi nhãn chiến lược — xem câu hỏi mở
+   #3.
+7. **"Ba lưu ý chiến lược cá nhân" do AI tự tổng hợp** — cần logic
+   sinh văn bản qua LLM (không phải chấm điểm thuần), khác hẳn
+   `recordLevelAdvance()` hiện tại (chỉ ghép câu template cố định) — cần
+   thiết kế prompt riêng.
+8. **`strategic_labels` đang rỗng, `Question.strategicLabelSlugs` chưa câu
+   nào được gắn** — bảng/cột đã tồn tại từ migration `20260922140300` nhưng
+   chưa có seed data lẫn admin UI để tạo/gắn nhãn. Không có dữ liệu này thì
+   toàn bộ engine "nhãn kép" ở trên chạy nhưng không có gì để bucket vào —
+   đây là điểm chặn thực sự trước khi Gate A Test có thể chạy thật.
+9. **1 đoạn comment đã lỗi thời trong `level-gate.ts:9-17`** — viết "Cấp A
+   (Advanced) is out of scope here... a separate, not-yet-specced flow",
+   nhưng code ngay bên dưới (`GateableLevel`, `GATE_TARGET_LEVEL`,
+   `ADVANCED_PLACEMENT_THRESHOLD`) đã ngầm định I→A dùng chung engine —
+   comment này sai so với thực tế code, mình sửa lại luôn (xem diff kèm
+   theo, không đổi hành vi, chỉ sửa mô tả).
+
+### 11.2 Cần anh chốt trước khi viết migration/code thật
+
+1. **Cách ghép "nhãn kép"**: hiện `scoreByLabel` chấm PART/GRAMMAR_TOPIC/
+   STRATEGIC_LABEL là 3 "ngăn" hoàn toàn tách rời (một câu Part 7 dạng NOT
+   stated tạo ra 2 dòng điểm riêng: một cho `PART:PART7`, một cho
+   `STRATEGIC_LABEL:not-stated` — không có dòng điểm nào đại diện đúng tổ
+   hợp "Part 7 + NOT stated" như ví dụ mục IV của spec). Xin xác nhận: giữ
+   cách tách rời này (đơn giản, dùng được ngay) hay cần thêm một loại điểm
+   composite thật sự ghép PART×STRATEGIC_LABEL (phức tạp hơn, đúng câu chữ
+   spec hơn)? Mình đề xuất **giữ tách rời** trước — đủ để tìm ra nhãn chiến
+   lược yếu nhất theo đúng ví dụ minh họa mục IV, làm composite thật sau nếu
+   dữ liệu thực tế cho thấy cần.
+2. **Danh sách `StrategicLabel` cụ thể** — spec chỉ cho ví dụ (inference,
+   author's purpose, NOT stated, three-speaker conversation, double/triple
+   passage synthesis...), chưa có danh sách đóng. Anh muốn tự chốt danh
+   sách, hay để mình soạn một bộ đề xuất (map theo từng Part 1-7) rồi gửi
+   anh duyệt trước khi seed?
+3. **Ngưỡng lọc nhiễu/thời gian cho Cấp A** — spec cho vài ví dụ khác nhau
+   theo loại câu (45s Part 7 suy luận, 25s Part 3 ý định, "<8s đoán mò/>2,5
+   phút mất kiểm soát" ở mức chung, "giảm >25% so với 20 câu đầu" cho tín
+   hiệu mệt mỏi). Mình đề xuất dùng đúng 2 số chung mục 2 (bài Cấp A) làm
+   ngưỡng loại nhiễu mặc định (<8s / >150s), còn số mục tiêu tốc độ riêng
+   từng nhãn (45s, 25s...) chỉ dùng để **hiển thị cảnh báo**, không dùng để
+   loại bỏ dữ liệu khi chấm Gate Test — anh xác nhận hướng này được không?
+4. **Route ghi timing cho `MentorTestQuestion`** — cần viết route mới
+   tương tự `attempts/[id]/sync` riêng cho lượt làm MentorTest (Gate A Test/
+   Remediation), hay đổi cách Gate A Test/Mock Test chạy qua `Attempt` model
+   luôn (tái dùng thẳng route sync đã có, đổi ít code hơn nhưng lẫn dữ liệu
+   Gate Test vào cùng bảng với luyện tập thường)? Mình nghiêng về **route
+   mới riêng cho MentorTest**, giữ 2 luồng dữ liệu tách biệt như thiết kế
+   ban đầu của B→I — anh xác nhận.
+5. **Field mục tiêu điểm theo Part** — thêm 1 bảng mới nhỏ (VD
+   `ProfilePartTarget { userId, part, targetScore }`) hay 1 field JSON trên
+   `Profile` (VD `partTargets: Json?`)? Mình đề xuất bảng riêng (dễ query/
+   validate hơn JSON) — anh xác nhận hoặc chọn hướng khác.
+
+### 11.3 Chưa làm gì ở phần schema/code cho mục 11 này (lúc viết mục 11.0-11.2)
+
+Đúng theo thói quen làm việc đã thống nhất từ mục 10 (viết migration/code
+chỉ sau khi anh chốt các điểm mở) — phần Cấp A trong mục 11 **dừng ở mức
+phân tích** ở lần viết đầu, chưa có migration hay file mới nào. Việc duy
+nhất đã làm kèm theo là sửa lại đúng 1 đoạn comment lỗi thời ở
+`level-gate.ts:9-17` (mục 11.1 điểm 9) cho khớp thực tế code — không đổi
+hành vi.
+
+### 11.4 Anh nói "làm tiếp" — đã code xong phần engine (2026-09-22)
+
+Không có phản hồi riêng cho từng điểm ở mục 11.2 — mình tiến hành theo đúng
+5 hướng đã đề xuất ở đó (giống cách mục 10.6 xử lý khi anh xác nhận chung
+chung), **chỉ phần không cần schema mới**, để không phải chờ anh chạy thêm
+migration trước khi có thể dùng thử. Cụ thể đã code:
+
+- **`prisma/seed-data/strategic-labels.ts`** (mới): 16 nhãn chiến lược đề
+  xuất, map theo Part (mục 11.2 điểm 2) — phần lớn Part 7 (inference,
+  NOT stated, author's purpose, quan hệ nhân quả 2 đoạn, tổng hợp 2-3 văn
+  bản, nghĩa từ trong ngữ cảnh) + một số Part 3/4/5/6, đúng tinh thần "nhãn
+  chiến lược khác nhãn ngữ pháp" của spec. Anh xem lại danh sách này — đây
+  vẫn là đề xuất, sửa/thêm/bớt trực tiếp trong file rồi seed lại là được,
+  không cần hỏi lại mình.
+- **`prisma/seed.ts`**: gọi `seedStrategicLabels()` (upsert theo slug, an
+  toàn khi chạy lại) trong `main()`, trước `seedMockTest01`.
+- **`getCoreLabels()` trong `level-gate.ts`**: với `level === "INTERMEDIATE"`
+  (tức Gate Test lên Cấp A), giờ trả thêm toàn bộ `STRATEGIC_LABEL` đã seed,
+  bên cạnh PART/GRAMMAR_TOPIC như cũ (mục 11.2 điểm 1 — giữ 3 loại nhãn tách
+  rời, không ghép composite).
+- **Bắt được 1 lỗ hổng thật trước khi nó gây hại**: `recordAttemptOutcomes`/
+  `recordMentorTestOutcomes` (`skill-mastery.ts`) trước đây **chưa bao giờ**
+  cộng dồn `SkillMastery` cho `STRATEGIC_LABEL`, dù cột
+  `Question.strategicLabelSlugs` đã tồn tại — nếu không sửa, thêm
+  `STRATEGIC_LABEL` vào `getCoreLabels` sẽ khiến `isEligibleForLevelGate`
+  không bao giờ đủ điều kiện (mẫu luôn = 0 dù học viên làm bao nhiêu câu).
+  Đã sửa cả hai hàm để loop qua `strategicLabelSlugs` giống cách đã loop
+  qua `grammarTopicSlug`.
+- **`src/lib/services/mentor/advanced-readiness.ts`** (mới) — 3 hàm, đúng
+  tên file mà comment trong schema/level-gate.ts đã nhắc tới từ trước:
+  - `computeStaminaCurve(attemptId)`: chia 1 Attempt đã nộp (dùng
+    `AttemptAnswer.firstAnsweredAt` so với `Attempt.startedAt`) thành khối
+    30 phút, tính accuracy từng khối, phát hiện "performance cliff" khi
+    khối cuối giảm ≥25% so với khối đầu (đúng số spec mục IV bước 2 dùng
+    cho tín hiệu mệt mỏi).
+  - `detectAnswerSwitchRisk(attemptId)`: % câu đổi từ đáp án ĐÚNG lúc đầu
+    (`initialSelectedLabel`) sang đáp án SAI lúc nộp — đúng định nghĩa "ảo
+    giác tự tin" mục IV/VII của spec. Ngưỡng cảnh báo 15% (cao hơn hẳn 12%
+    trong ví dụ minh họa mục IX của một learner còn "cần tinh chỉnh" — xem
+    comment trong file, spec không cho số đóng nên đây là đề xuất).
+  - `buildAdvancedHandoffNotes(userId)`: sinh tối đa 3 "lưu ý chiến lược cá
+    nhân" — template ghép câu (KHÔNG gọi LLM, giữ đúng triết lý
+    `recordLevelAdvance` hiện có "AI tổng hợp dữ liệu thật, không tự bịa"),
+    ưu tiên nhãn chiến lược yếu nhất từ `SkillMastery`, sau đó mới thêm
+    cảnh báo stamina curve/answer-switch từ Mock Test gần nhất nếu còn chỗ
+    trống (tối đa 3 dòng).
+- **`recordLevelAdvance()` trong `level-gate.ts`**: khi `toLevel ===
+  "ADVANCED"`, gọi `buildAdvancedHandoffNotes` và nối thêm vào
+  `MentorMemory.summary` — vẫn dạng text (không phải JSON có cấu trúc như
+  spec mục X mô tả, xem 11.5) nhưng đủ để AI Mentor đọc được ngay trong
+  context chat, giống hệt cách B→I đã làm.
+- **Đã kiểm tra sạch**: `npx tsc --noEmit` không phát sinh lỗi mới (chỉ còn
+  đúng lỗi giả `LayoutProps` đã biết), `npx eslint` trên toàn bộ file mới/
+  sửa (`level-gate.ts`, `advanced-readiness.ts`, `skill-mastery.ts`,
+  `seed.ts`, `strategic-labels.ts`): không lỗi, không cảnh báo.
+
+### 11.5 Vẫn chưa làm — cần anh biết trước khi coi Cấp A là "xong"
+
+Phần engine chấm/phân cấp/sinh bài đã chạy được kỹ thuật, nhưng **chưa có
+dữ liệu thật để chạy** và một số phần UI/tính năng trong spec cố tình chưa
+đụng tới trong lượt này — không phải quên, mà là để tránh làm dở dang một
+tính năng UI lớn khi chưa rõ anh có muốn hướng đó không:
+
+- **`Question.strategicLabelSlugs` vẫn rỗng cho mọi câu** — đây là việc gắn
+  nhãn theo nội dung từng câu (đọc câu hỏi + đoạn văn để xác định nó thuộc
+  nhãn nào), không phải việc code có thể tự làm đúng mà không có anh/đội
+  content duyệt lại — giống hệt tình huống "ngân hàng câu hỏi thiếu" đã nêu
+  ở mục 10.5. Không có bước này, Gate A Test không có câu nào để chọn theo
+  nhãn chiến lược dù engine đã sẵn sàng.
+- **Timing thật cho chính bài Gate A Test/Remediation Test** —
+  `MentorTestQuestion.timeSpentSec` và các cột liên quan vẫn luôn = 0 (mục
+  11.1 điểm 2, chưa đổi). `computeStaminaCurve`/`detectAnswerSwitchRisk` ở
+  trên chỉ đọc được từ Mock Test (`Attempt`, đã có timing thật) — đúng như
+  ví dụ minh họa mục IX của spec dùng Mock Test, không phải Gate Test, nên
+  không chặn việc lên Cấp A, nhưng nếu muốn phân tích thời gian ngay trên
+  chính bài Gate/Remediation thì vẫn cần route ghi timing riêng (mục 11.2
+  điểm 4, vẫn mở).
+- **Mục tiêu điểm theo từng Part** (Listening ≥450, Reading ≥420...) —
+  chưa có field nào trên `Profile` (mục 11.1 điểm 3/11.2 điểm 5, vẫn mở,
+  cần anh chọn bảng riêng hay JSON field trước khi code).
+- **Chế độ "dừng lại và cam kết"** (bắt buộc chọn trong 10 giây đầu trước
+  khi được xem lại) — là một tương tác UI mới hẳn trên màn hình luyện tập,
+  chưa đụng tới `exam-runner.tsx`.
+- **Hồ sơ bàn giao dạng JSON có cấu trúc** (spec mục X) — hiện vẫn là 1
+  dòng text nối vào `MentorMemory.summary` (đủ để AI đọc, không đủ để hiển
+  thị như một màn hình/tài liệu riêng cho học viên xem lại).
+- **Admin UI cho `strategic_labels`** — hiện tạo/sửa nhãn phải qua seed
+  script hoặc Prisma Studio, chưa có màn hình riêng trong `/admin` (cùng
+  tình trạng với `ScoreConversionTable` đã nêu ở "Known production TODOs"
+  trong README).
+
+Việc tiếp theo hợp lý nhất: chạy `npm run db:seed` để có 16 nhãn chiến lược
+trong DB, sau đó gắn `strategicLabelSlugs` cho một số câu Part 7 hiện có
+(qua Admin → Câu hỏi, hoặc gửi mình danh sách câu + nhãn để mình cập nhật
+qua script) — chỉ cần vài chục câu phủ đủ 16 nhãn là có thể thử chạy thật
+Gate A Test lần đầu, dù chưa đủ 200 câu/15 câu mỗi nhãn để tính phân cấp
+chính thức.
+
+### 11.6 Anh nói "chạy tiếp" — đã gắn nhãn thật cho seed-data (2026-09-22)
+
+Đọc lại toàn bộ `prisma/seed-data/part7.ts` (58 câu) và `part3.ts` (12 hội
+thoại) để tìm câu nào **thật sự** phù hợp với 1 nhãn chiến lược — không gán
+ép câu hỏi chi tiết thuần túy (what time/how much/who) chỉ để có "coverage",
+vì làm vậy sẽ làm nhiễu chính dữ liệu `SkillMastery` mà engine dùng để chấm.
+Kết quả:
+
+- **`part3.ts`**: không có hội thoại nào thật sự là 3 người nói hay có đáp
+  án nhiễu cùng âm rõ rệt — toàn bộ câu hỏi ở đây là dạng chi tiết đơn giản
+  (Cấp B/I phù hợp hơn). Không gắn nhãn nào — đây là **thiếu nội dung thật
+  sự**, không phải việc gắn nhãn có thể giải quyết được (mục 11.5 vẫn đúng
+  cho Part 3/4/5/6).
+- **`part7.ts`**: gắn nhãn cho 8 câu có sẵn phù hợp thật — 6 câu
+  `authors-purpose` (các câu "what is the purpose/mainly about/mainly
+  involve/proposing"), 1 câu `vocabulary-in-context` ("the word 'notify'..."),
+  1 câu `inference` (câu chat "what does Duy mean khi viết 'that gives us
+  an hour'").
+- **Viết mới 4 câu hỏi tổng hợp đa văn bản** (nối thêm vào 3 passage
+  DOUBLE/TRIPLE đã có sẵn, không tạo passage mới) — đây là loại câu Cấp A
+  cốt lõi mà kho hiện tại **hoàn toàn chưa có** (mọi câu cũ đều trả lời
+  được chỉ bằng 1 trong các văn bản, không cần tổng hợp):
+  - Email trễ giao hàng (DOUBLE): tính số ngày từ lúc đặt hàng đến lúc
+    nhận, phải cộng thông tin ngày đặt ở Email 1 với ngày gửi+thời gian
+    vận chuyển ở Email 2 — `double-triple-passage-synthesis`.
+  - Job posting + email ứng tuyển (DOUBLE): đối chiếu yêu cầu kinh nghiệm
+    của tin tuyển dụng với số năm kinh nghiệm ứng viên tự khai —
+    `double-triple-passage-synthesis`.
+  - Workshop flyer/email/reminder (TRIPLE): câu NOT-stated thật — 1 đáp án
+    "chứng chỉ hoàn thành" không xuất hiện ở bất kỳ văn bản nào trong 3
+    văn bản — `not-stated` + `double-triple-passage-synthesis`.
+  - Memo/email nhân viên/thông báo chính sách (TRIPLE): nối đề xuất của
+    Chau Pham ở email với quyết định cuối cùng trong thông báo chính sách
+    — quan hệ nhân quả xuyên 2 văn bản — `cross-paragraph-cause-effect` +
+    `double-triple-passage-synthesis`.
+- **`SeedPart7Question`/`seed.ts`**: thêm field `strategicLabelSlugs?:
+  string[]` vào interface, nối vào `db.question.create` khi seed Part 7.
+- **Đã kiểm tra**: script nhỏ xác nhận cả 58 câu Part 7 đều đủ 4 đáp án +
+  `correctIndex` hợp lệ (0 lỗi), 12/58 câu có ít nhất 1 nhãn chiến lược,
+  và mọi slug dùng trong `part7.ts` khớp đúng với 16 nhãn đã định nghĩa ở
+  `strategic-labels.ts` (không có slug gõ sai/không tồn tại). `tsc`/`eslint`
+  trên các file đã sửa: sạch.
+
+**Vẫn còn thiếu, không giải quyết trong lượt này**: 12 câu (8 gắn nhãn có
+sẵn + 4 câu mới) còn rất xa mốc "≥15 câu/nhãn" mà `isEligibleForLevelGate`
+yêu cầu cho từng nhãn trong 16 nhãn đã seed — đây chỉ là đủ để **thử chạy
+kỹ thuật** (tạo được Gate A Test, thấy được luồng chấm nhãn kép hoạt động),
+chưa đủ để một học viên thật đi hết vòng phân cấp Cấp A. Cần viết thêm
+nhiều câu Part 7 (và nội dung Part 3/4 thật sự có 3 người nói/đáp án nhiễu
+âm) — việc content dài hơi, không phải việc code.
+
+### 11.7 Lỗi thật bắt được khi anh test trên web (2026-09-22) — LearningPath không phản ứng với MentorTest
+
+Anh test trực tiếp trên web và báo: làm xong một bài (5 câu — đây là
+`DEFAULT_QUESTION_COUNT` của một bài luyện tập theo 1 nhãn đơn lẻ trong
+`mentor-test-generator.ts`, khác với Gate Test lấy câu trải khắp mọi nhãn
+cốt lõi), qua rồi **không thấy gì xảy ra tiếp** — không có bài/lộ trình nào
+được đưa ra, dù pass hay fail.
+
+Đây không phải cảm giác sai — soát code xác nhận là lỗi thật, áp dụng cho
+**toàn bộ hệ thống Gate B/I/A, không riêng Cấp A**: `LearningPath` được
+thiết kế "sống" (mục 7 — luôn phản ánh dữ liệu mới nhất qua
+`refreshLearningPathForUser`/`replanUpcomingDays`), nhưng hàm này trước giờ
+**chỉ được gọi khi nộp một bài thi thử đầy đủ** (`attempts/[attemptId]/
+submit/route.ts`) — route nộp MentorTest (`mentor/tests/[id]/submit/
+route.ts`, dùng cho MỌI loại: luyện tập theo nhãn, Placement, Gate Test,
+Remediation) **chưa bao giờ gọi hàm này**. Nghĩa là dù `recordLevelAdvance`
+đã cập nhật `mentorLevel` và `MentorMemory` đúng, lộ trình học hiển thị cho
+người dùng vẫn đứng yên y như trước khi lên cấp — không có gì mới xuất hiện
+trên Dashboard/`/mentor/path`.
+
+**Đã sửa:**
+- `mentor/tests/[id]/submit/route.ts`: gọi `refreshLearningPathForUser`
+  (fire-and-forget) ở cuối, sau mọi lượt nộp MentorTest — áp dụng chung cho
+  luyện tập thường, Placement, Gate Test (B→I và I→A), Remediation, không
+  chỉ riêng nhánh ADVANCE.
+- `mentor-test-runner-dialog.tsx`: thêm nút "Xem lộ trình học" (dẫn tới
+  `/mentor/path`) ở màn hình kết quả — áp dụng cho mọi nhánh kết quả (đạt,
+  chưa đạt, ADVANCE, REMEDIATE, RESTART), để người học luôn có một hành
+  động tiếp theo rõ ràng thay vì chỉ có nút "Đóng".
+- Sửa 1 comment lỗi thời ở `mentor-level-gate-card.tsx` (nói sai là card
+  "renders nothing once past Cấp I" — thực ra route đã hỗ trợ I→A từ trước
+  khi viết comment đó).
+- `tsc`/`eslint` trên các file sửa: sạch.
+
+**Về câu hỏi "5 câu"**: đây đúng là hành vi thiết kế của một bài luyện tập
+theo 1 nhãn đơn lẻ (`DEFAULT_QUESTION_COUNT` trong `mentor-test-generator.ts`),
+không phải Gate Test — Gate Test lấy câu trải khắp mọi nhãn cốt lõi của cấp
+hiện tại nên số câu sẽ nhiều hơn hẳn (dù có thể vẫn ít hơn kỳ vọng nếu ngân
+hàng câu hỏi cho từng nhãn còn mỏng — xem mục 10.5/11.6).
+
+### 11.8 Anh nói "làm toàn bộ đến chuẩn chuyên nghiệp" — mở rộng ngân hàng ngữ pháp + sửa nốt màn hình "đã nộp trước đó" (2026-09-22)
+
+Anh gửi ảnh chụp màn hình thực tế: mở lại một bài đã làm trước đó chỉ thấy
+"Bài kiểm tra này đã được nộp trước đó — 80% câu đúng" và nút "Đóng", không
+có gì khác — đây là nhánh `alreadyGraded` trong
+`mentor-test-runner-dialog.tsx`, **khác** với nhánh `result` (bài vừa nộp
+trong phiên hiện tại) mà mục 11.7 đã sửa — nên fix trước chưa che hết
+trường hợp này.
+
+**Đã sửa:**
+- `mentor-test-runner-dialog.tsx`: nhánh `alreadyGraded` giờ hiện icon đạt/
+  chưa đạt, điểm số, câu thông báo phù hợp trạng thái, và cùng nút "Xem lộ
+  trình học" như nhánh `result`.
+- Soát lại toàn bộ 15 chủ điểm ngữ pháp (`grammar.ts` + `grammar-extra-
+  questions.ts`) — phát hiện mỗi chủ điểm chỉ có **7 câu** (2 base + 5
+  extra), quá mỏng so với `RECENT_EXCLUSION_DAYS = 14` (loại câu đã làm
+  trong 14 ngày): làm 1 bài 5 câu là gần cạn sạch, lần luyện tiếp theo
+  trong 2 tuần gần như không còn câu mới. Đã viết thêm 8 câu/chủ điểm (120
+  câu hoàn toàn mới, đã kiểm chứng ngữ pháp từng câu) — mỗi chủ điểm giờ có
+  14-15 câu, tăng hơn gấp đôi.
+- `DEFAULT_QUESTION_COUNT` trong `mentor-test-generator.ts`: 5 → 8, tương
+  xứng với ngân hàng đã dày hơn.
+- Kiểm tra script xác nhận: 0 lỗi cấu trúc (đủ 4 đáp án, `correctIndex`
+  hợp lệ) trên toàn bộ 15×14-15 câu. `tsc`/`eslint`: sạch.
+
+**Vẫn còn thiếu, chưa làm trong lượt này** (để giữ phạm vi rõ ràng, không
+tự ý mở rộng thành một dự án viết lại toàn bộ ngân hàng câu hỏi):
+- Ngân hàng câu hỏi Part 1-4 (Listening) và Part 5-7 dùng cho *luyện tập
+  theo Part* (khác với luyện theo chủ điểm ngữ pháp) — README đã ghi rõ
+  đây vẫn ở mức seed tối thiểu (6 Part 1, 10 Part 2, 10 hội thoại Part 3, 4
+  bài Part 4, 30 Part 5, ~12 Part 6, 15 Part 7 — xem `docs/content-
+  sources.md`). Lượt này chỉ mở rộng phần ngữ pháp (Part 5 dạng chủ điểm)
+  vì đó là nơi có bằng chứng cụ thể nhất (ảnh chụp màn hình + tính toán
+  14-ngày). Mở rộng Part 1-4/6/7 ở quy mô tương tự là việc tiếp theo hợp
+  lý nếu anh xác nhận cần.
+- "Chỉ 1 Part để test" — nếu ý anh là muốn một bài luyện tập trộn nhiều
+  Part cùng lúc (không phải chỉ 1 chủ điểm/Part đơn lẻ), đây là thay đổi
+  thiết kế cho `generateMentorTest` (hiện cố tình chỉ nhắm đúng 1 nhãn yếu
+  để luyện tập có mục tiêu) — cần anh xác nhận đây có đúng là điều anh
+  muốn không, vì nó đổi hẳn triết lý "luyện đúng chỗ yếu" đang có.

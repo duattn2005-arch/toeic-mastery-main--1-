@@ -15,6 +15,7 @@ import { VOCABULARY_TOPICS_BAND } from "./seed-data/vocabulary-band";
 import { VOCABULARY_TOPICS_PART } from "./seed-data/vocabulary-part";
 import { VOCABULARY_TOPICS_PHRASES } from "./seed-data/vocabulary-phrases";
 import { GRAMMAR_TOPICS } from "./seed-data/grammar";
+import { STRATEGIC_LABELS } from "./seed-data/strategic-labels";
 import { EXTRA_GRAMMAR_QUESTIONS } from "./seed-data/grammar-extra-questions";
 import { PART1_QUESTIONS } from "./seed-data/part1";
 import { PART2_QUESTIONS } from "./seed-data/part2";
@@ -106,6 +107,20 @@ async function seedGrammar() {
         },
       });
     }
+  }
+}
+
+/** Cấp A "nhãn chiến lược" taxonomy (see seed-data/strategic-labels.ts) —
+ * tagging actual Question rows with these slugs is separate, ongoing admin
+ * content work, not something this seed script does. */
+async function seedStrategicLabels() {
+  console.log(`Seeding ${STRATEGIC_LABELS.length} strategic labels...`);
+  for (const [i, label] of STRATEGIC_LABELS.entries()) {
+    await db.strategicLabel.upsert({
+      where: { slug: label.slug },
+      update: { title: label.title, category: label.category, appliesToParts: label.appliesToParts, orderIndex: i },
+      create: { slug: label.slug, title: label.title, category: label.category, appliesToParts: label.appliesToParts, orderIndex: i },
+    });
   }
 }
 
@@ -339,6 +354,7 @@ async function seedMockTest01() {
           correctLabel: LABELS[q.correctIndex],
           explanationVi: q.explanationVi,
           evidenceText: q.evidenceText,
+          strategicLabelSlugs: q.strategicLabelSlugs ?? [],
           status: "PUBLISHED",
           options: { create: q.options.map((content, i) => ({ label: LABELS[i], content, isCorrect: i === q.correctIndex })) },
         },
@@ -375,6 +391,7 @@ async function seedDraftTests() {
 async function main() {
   await seedVocabulary();
   await seedGrammar();
+  await seedStrategicLabels();
   await seedMockTest01();
   await seedDraftTests();
   console.log("\nSeed complete.");

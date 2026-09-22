@@ -97,4 +97,67 @@ export const PART6_PASSAGES: SeedPart6Passage[] = [
       { options: ["that", "what", "which", "who"], correctIndex: 0, explanationVi: "'Confirm that + mệnh đề' — 'that' dẫn mệnh đề danh từ làm tân ngữ.", grammarTopicSlug: "conjunctions" },
     ],
   },
+  {
+    title: "Notice — Building Access Card Update",
+    format: "NOTICE",
+    content:
+      "NOTICE TO ALL TENANTS\n\nStarting next month, all building access cards will (31) reprogrammed to include the new parking garage entrance. Tenants should visit the management office between 9 a.m. and 5 p.m. to have their cards updated.\n\n(32)\n\nPlease allow up to ten minutes for each card to be reprogrammed. We appreciate your patience (33) this transition, and we apologize for (34) inconvenience this may cause.",
+    blanks: [
+      { options: ["be", "been", "being", "is"], correctIndex: 0, explanationVi: "Sau modal 'will' cần dạng nguyên mẫu của bị động: 'will be reprogrammed'.", grammarTopicSlug: "passive-voice" },
+      {
+        options: [
+          "Cards not updated by the end of the month will no longer grant access to the garage.",
+          "The building was constructed fifteen years ago.",
+          "Rent payments are due on the first of each month.",
+          "The lobby will be repainted next week.",
+        ],
+        correctIndex: 0,
+        explanationVi: "Câu này tiếp nối trực tiếp thông tin về hạn cập nhật thẻ, nêu hậu quả nếu không cập nhật kịp.",
+      },
+      { options: ["during", "while", "for", "since"], correctIndex: 0, explanationVi: "'During + cụm danh từ' diễn tả 'trong suốt' một khoảng thời gian: 'during this transition'.", grammarTopicSlug: "prepositions" },
+      { options: ["any", "the", "some", "much"], correctIndex: 0, explanationVi: "Cụm cố định 'apologize for any inconvenience this may cause'.", grammarTopicSlug: "pronouns" },
+    ],
+  },
+  {
+    title: "Memo — Updated IT Password Policy",
+    format: "MEMO",
+    content:
+      "TO: All Staff\nFROM: IT Security Team\n\nEffective immediately, all employees (31) required to update their network passwords every ninety days instead of annually. This change follows a recommendation from our recent security audit.\n\nPasswords must contain at least one number and one special character to be considered (32).\n\n(33)\n\nIf you experience any trouble updating your password, please contact the help desk (34) assistance.",
+    blanks: [
+      { options: ["are", "is", "were", "have"], correctIndex: 0, explanationVi: "Chủ ngữ 'all employees' số nhiều cần động từ số nhiều: 'are required'.", grammarTopicSlug: "subject-verb-agreement" },
+      { options: ["secure", "securely", "security", "securities"], correctIndex: 0, explanationVi: "Sau động từ liên kết 'to be considered' cần tính từ: 'secure'.", grammarTopicSlug: "adjectives" },
+      {
+        options: [
+          "Passwords that do not meet these requirements will be automatically rejected by the system.",
+          "The IT department was established five years ago.",
+          "Employee badges must be worn at all times.",
+          "The server room is located on the second floor.",
+        ],
+        correctIndex: 0,
+        explanationVi: "Câu này tiếp nối trực tiếp yêu cầu về mật khẩu ở câu trước, nêu điều gì xảy ra nếu không đáp ứng.",
+      },
+      { options: ["for", "with", "of", "on"], correctIndex: 0, explanationVi: "Collocation cố định: 'contact someone for assistance'.", grammarTopicSlug: "prepositions" },
+    ],
+  },
+  {
+    title: "Article — New Public Transit Route",
+    format: "ARTICLE",
+    content:
+      "The city transit authority announced this week that a new bus route (31) connect the downtown business district directly to the airport starting next month. Officials say the route is designed to reduce travel time for commuters who currently rely on multiple transfers.\n\n\"This route has been (32) requested by residents for years,\" said transit spokesperson Tuan Le. \"We are excited to finally make it a reality.\"\n\n(33)\n\nThe transit authority also announced plans to add more routes (34) response to continued population growth in the area.",
+    blanks: [
+      { options: ["will", "would", "is", "was"], correctIndex: 0, explanationVi: "Ngữ cảnh diễn tả kế hoạch trong tương lai gần (starting next month): 'will connect'.", grammarTopicSlug: "verb-tense" },
+      { options: ["frequent", "frequently", "frequency", "frequented"], correctIndex: 1, explanationVi: "Cần trạng từ bổ nghĩa cho phân từ 'requested': 'frequently requested'.", grammarTopicSlug: "adverbs" },
+      {
+        options: [
+          "The new route is expected to begin service on the fifteenth of next month.",
+          "The airport was renovated two years ago.",
+          "Bus fares will remain unchanged this year.",
+          "The transit authority employs over 500 people.",
+        ],
+        correctIndex: 0,
+        explanationVi: "Câu này bổ sung thông tin cụ thể về thời điểm vận hành tuyến mới, tiếp nối mạch bài viết.",
+      },
+      { options: ["in", "at", "on", "by"], correctIndex: 0, explanationVi: "Collocation cố định: 'in response to' (để đáp ứng với).", grammarTopicSlug: "prepositions" },
+    ],
+  },
 ];

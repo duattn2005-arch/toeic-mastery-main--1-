@@ -2,18 +2,24 @@ import "server-only";
 import { db } from "@/lib/db";
 import { RECENT_EXCLUSION_DAYS, shuffle } from "./mentor-test-generator";
 import { TEST_PARTS } from "@/lib/constants/toeic";
+import { buildAdvancedHandoffNotes } from "./advanced-readiness";
 import type { Prisma } from "@/generated/prisma/client";
 import type { MentorLevel, SkillDimensionType, TestPart } from "@/generated/prisma/enums";
 
 /**
  * Beginner->Intermediate->Advanced level gate (see docs/ai-mentor-
- * architecture.md section 10) — layered on top of the existing per-
- * dimension SkillMastery/SkillUnlock engine (skill-mastery.ts) rather than
- * replacing it. A LEVEL_GATE MentorTest (mentor-test-generator.ts's sibling
- * here) is the only thing that can move `Profile.mentorLevel` forward.
+ * architecture.md sections 10-11) — layered on top of the existing
+ * per-dimension SkillMastery/SkillUnlock engine (skill-mastery.ts) rather
+ * than replacing it. A LEVEL_GATE MentorTest (mentor-test-generator.ts's
+ * sibling here) is the only thing that can move `Profile.mentorLevel`
+ * forward.
  *
- * Cấp A (Advanced) is out of scope here — no further gate is generated once
- * a learner reaches INTERMEDIATE; that's a separate, not-yet-specced flow.
+ * `GateableLevel` already includes INTERMEDIATE (→ ADVANCED), so the I→A
+ * gate runs on the same engine as B→I. What's still missing for Cấp A is
+ * content, not mechanism: getCoreLabels("INTERMEDIATE") doesn't yet return
+ * any STRATEGIC_LABEL entries (see section 11.1), and `strategic_labels` has
+ * no rows/Question tagging yet — see section 11 for the open decisions
+ * before that gets wired up.
  */
 
 /** A level that still has a "next" gate to clear. */
@@ -78,13 +84,26 @@ const BEGINNER_CORE_PARTS: TestPart[] = ["PART1", "PART2", "PART5"];
  * dimension — so each level just widens its per-topic bar with a separate
  * per-part bar instead of narrowing to a cross. Revisit if a real
  * PART+GRAMMAR_TOPIC dimension gets added later.)
+ *
+ * Intermediate's set additionally includes every seeded StrategicLabel
+ * (mục 11 — Cấp A's "nhãn chiến lược") on top of PART/GRAMMAR_TOPIC, per
+ * mục 11.2 điểm 1's decision to keep the three label types as separate
+ * buckets rather than one composite PART×STRATEGIC_LABEL key. Until
+ * Question rows actually carry strategicLabelSlugs (a content-tagging task,
+ * not code — see seed-data/strategic-labels.ts's own comment), this simply
+ * adds core labels nothing can satisfy yet, same as any other under-seeded
+ * label already surfaces as "labelsBelow" on the eligibility check.
  */
 export async function getCoreLabels(level: GateableLevel): Promise<CoreLabel[]> {
   const topics = await db.grammarTopic.findMany({ select: { slug: true }, orderBy: { orderIndex: "asc" } });
   const grammarLabels: CoreLabel[] = topics.map((t) => ({ dimensionType: "GRAMMAR_TOPIC" as const, dimensionKey: t.slug }));
   const parts = level === "BEGINNER" ? BEGINNER_CORE_PARTS : TEST_PARTS;
   const partLabels: CoreLabel[] = parts.map((p) => ({ dimensionType: "PART" as const, dimensionKey: p }));
-  return [...partLabels, ...grammarLabels];
+  if (level === "BEGINNER") return [...partLabels, ...grammarLabels];
+
+  const strategicLabels = await db.strategicLabel.findMany({ select: { slug: true }, orderBy: { orderIndex: "asc" } });
+  const strategicCoreLabels: CoreLabel[] = strategicLabels.map((s) => ({ dimensionType: "STRATEGIC_LABEL" as const, dimensionKey: s.slug }));
+  return [...partLabels, ...grammarLabels, ...strategicCoreLabels];
 }
 
 export interface LevelGateEligibility {
@@ -488,9 +507,24 @@ export async function recordLevelAdvance(params: {
     stillWeak.length > 0
       ? `Còn hơi yếu ở: ${stillWeak.map((l) => `${l.dimensionKey} (${Math.round(l.score * 100)}%)`).join(", ")}.`
       : "Không còn nhãn nào yếu rõ rệt lúc vượt cấp.";
-  const handoffLine = `[Bàn giao ${params.fromLevel}→${params.toLevel}, ${new Date().toISOString().slice(0, 10)}] Đạt ${Math.round(
+  let handoffLine = `[Bàn giao ${params.fromLevel}→${params.toLevel}, ${new Date().toISOString().slice(0, 10)}] Đạt ${Math.round(
     params.overallScore * 100
   )}% ở Gate Test. ${weakText}`;
+
+  // Cấp A handoff (mục 11/spec mục X's "Hồ sơ chiến lược thi thật") — chỉ
+  // áp dụng cho I→A, không phải B→I. Template-generated từ SkillMastery +
+  // Mock Test gần nhất (advanced-readiness.ts), không phải LLM tự sinh —
+  // giữ cùng triết lý "AI không tự bịa nội dung, chỉ tổng hợp dữ liệu thật"
+  // của toàn bộ level-gate.ts.
+  if (params.toLevel === "ADVANCED") {
+    const notes = await buildAdvancedHandoffNotes(params.userId).catch((err) => {
+      console.error("buildAdvancedHandoffNotes failed", err);
+      return [];
+    });
+    if (notes.length > 0) {
+      handoffLine += `\nLưu ý chiến lược Cấp A: ${notes.join(" | ")}`;
+    }
+  }
 
   const existing = await db.mentorMemory.findUnique({ where: { userId: params.userId }, select: { summary: true } });
   const summary = existing?.summary ? `${existing.summary}\n${handoffLine}` : handoffLine;

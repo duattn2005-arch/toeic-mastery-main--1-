@@ -107,4 +107,54 @@ export const PART4_TALKS: SeedTalk[] = [
       { prompt: "What should Ms. Vo do if her plans change?", options: ["Arrive earlier instead", "Call at least two hours in advance", "Email the restaurant", "Nothing is required"], correctIndex: 1, explanationVi: "Cô nên gọi trước ít nhất hai giờ để tránh phí hủy." },
     ],
   },
+  {
+    title: "Weather-related office closure announcement",
+    transcript:
+      "Good morning, everyone. Due to the severe storm warning issued for our area, the office will remain closed today, and all staff should work from home if possible. Please check your email throughout the day for further updates. We plan to reopen tomorrow unless conditions worsen. Stay safe, and thank you for your understanding.",
+    questions: [
+      { prompt: "Why is the office closed today?", options: ["A power outage", "A severe storm warning", "A building inspection", "A public holiday"], correctIndex: 1, explanationVi: "Văn phòng đóng cửa do cảnh báo bão nghiêm trọng." },
+      { prompt: "What should employees do today?", options: ["Come in an hour late", "Work from home if possible", "Report to a different office", "Take a paid day off"], correctIndex: 1, explanationVi: "Nhân viên nên làm việc tại nhà nếu có thể." },
+      { prompt: "When does the office plan to reopen?", options: ["Later today", "Tomorrow", "Next week", "It has not been decided"], correctIndex: 1, explanationVi: "Văn phòng dự kiến mở cửa lại vào ngày mai." },
+    ],
+  },
+  {
+    title: "Conference welcome speech",
+    transcript:
+      "Good morning, and welcome to the twelfth annual Tech Innovators Summit. Over the next two days, you'll hear from more than twenty speakers on topics ranging from artificial intelligence to sustainable design. Please remember to pick up your name badge and program guide at the registration desk if you haven't already. Our opening keynote will begin in fifteen minutes in the main hall.",
+    questions: [
+      { prompt: "What event is taking place?", options: ["A product launch", "A technology conference", "A job fair", "A shareholder meeting"], correctIndex: 1, explanationVi: "Đây là hội nghị công nghệ Tech Innovators Summit." },
+      { prompt: "How many days will the event last?", options: ["One day", "Two days", "Three days", "A full week"], correctIndex: 1, explanationVi: "Sự kiện kéo dài hai ngày." },
+      { prompt: "Where should attendees pick up their name badge?", options: ["The main hall", "The registration desk", "The parking area", "Online in advance"], correctIndex: 1, explanationVi: "Người tham dự nhận thẻ tên tại quầy đăng ký." },
+    ],
+  },
+  {
+    title: "Voicemail about a job interview",
+    transcript:
+      "Hello, this message is for Ms. Le. This is Anh calling from Brightline Media regarding your interview for the Marketing Coordinator position. We'd like to invite you back for a second interview next Tuesday at 10 a.m. Please bring two references if you have them available. Feel free to call me back at 555-0198 to confirm your availability.",
+    questions: [
+      { prompt: "Why is Anh calling?", options: ["To reject an application", "To invite Ms. Le to a second interview", "To offer Ms. Le the job", "To reschedule a meeting"], correctIndex: 1, explanationVi: "Anh gọi để mời Ms. Le tham gia vòng phỏng vấn thứ hai." },
+      { prompt: "When is the second interview scheduled?", options: ["Monday at 10 a.m.", "Tuesday at 10 a.m.", "Wednesday at 2 p.m.", "Friday morning"], correctIndex: 1, explanationVi: "Phỏng vấn lần hai được lên lịch vào thứ Ba lúc 10 giờ sáng." },
+      { prompt: "What is Ms. Le asked to bring?", options: ["A portfolio", "Two references", "A signed contract", "Her resume only"], correctIndex: 1, explanationVi: "Cô được yêu cầu mang theo hai thư giới thiệu." },
+    ],
+  },
+  {
+    title: "Store announcement — Inventory check",
+    transcript:
+      "Attention staff. We will be conducting our quarterly inventory check this Sunday, so the store will open two hours later than usual, at 11 a.m. All part-time staff are asked to arrive by 7 a.m. to assist with the count. Please make sure the shelves are neatly organized before you leave tonight to make the process faster.",
+    questions: [
+      { prompt: "What is the purpose of this announcement?", options: ["A store closing", "A quarterly inventory check", "A new product launch", "A staff meeting"], correctIndex: 1, explanationVi: "Thông báo về đợt kiểm kê hàng hóa quý." },
+      { prompt: "What time will the store open on Sunday?", options: ["9 a.m.", "10 a.m.", "11 a.m.", "Noon"], correctIndex: 2, explanationVi: "Cửa hàng sẽ mở cửa lúc 11 giờ sáng Chủ Nhật." },
+      { prompt: "What are staff asked to do before leaving tonight?", options: ["Count the cash register", "Organize the shelves", "Clean the storeroom", "Submit their timesheets"], correctIndex: 1, explanationVi: "Nhân viên cần sắp xếp gọn gàng các kệ hàng trước khi ra về tối nay." },
+    ],
+  },
+  {
+    title: "Webinar introduction — Marketing trends",
+    transcript:
+      "Thank you all for joining today's webinar on emerging marketing trends. Before we begin, please note that this session is being recorded, and a link to the recording will be sent to all registered participants by email tomorrow. If you have questions during the presentation, please type them into the chat box, and we'll address them during the Q&A session at the end.",
+    questions: [
+      { prompt: "What is the purpose of this event?", options: ["A product demo", "A webinar on marketing trends", "A team meeting", "A training exam"], correctIndex: 1, explanationVi: "Đây là hội thảo trực tuyến về xu hướng marketing." },
+      { prompt: "How will participants receive the recording?", options: ["By text message", "By email tomorrow", "On the company website today", "They will not receive one"], correctIndex: 1, explanationVi: "Người tham dự sẽ nhận bản ghi qua email vào ngày mai." },
+      { prompt: "What should participants do if they have questions?", options: ["Raise their hand", "Type them into the chat box", "Email the presenter directly", "Wait until next week"], correctIndex: 1, explanationVi: "Người tham dự nên gõ câu hỏi vào ô chat." },
+    ],
+  },
 ];
