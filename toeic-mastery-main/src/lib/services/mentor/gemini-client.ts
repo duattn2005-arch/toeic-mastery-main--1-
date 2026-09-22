@@ -27,6 +27,13 @@ const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models
  * streamMentorReply's generationConfig below), so swapping this back to a
  * lite model needs re-verifying that first. */
 export const DEFAULT_MODEL = "gemini-3.5-flash";
+/** Free-tier "high demand" 503s are common and hit different model
+ * ids/aliases at different times (measured: gemini-flash-latest 503ing
+ * consistently while gemini-3.5-flash next to it answered fine, and vice
+ * versa on other days) — worth one retry against a different model before
+ * giving up. This one specifically does NOT accept `thinkingConfig` (400s
+ * on it), so the fallback call always omits that field. */
+const FALLBACK_MODEL = "gemini-flash-lite-latest";
 
 interface GeminiStreamChunk {
   candidates?: { content?: { parts?: { text?: string }[] } }[];
@@ -45,6 +52,15 @@ function requireApiKey(): string {
 
 function toGeminiContents(messages: MentorChatMessage[]) {
   return messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
+}
+
+/** disableThinking is a separate flag rather than always-on because
+ * FALLBACK_MODEL 400s on `thinkingConfig` — see its comment above. */
+function buildGenerationConfig(maxTokens: number, disableThinking: boolean) {
+  return {
+    maxOutputTokens: maxTokens,
+    ...(disableThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+  };
 }
 
 /**
@@ -84,6 +100,22 @@ async function throwForBadResponse(res: Response): Promise<never> {
   throw new Error(`Gemini API error ${res.status}: ${bodyText}`);
 }
 
+function fetchGeminiStream(model: string, apiKey: string, params: { system: string; messages: MentorChatMessage[]; maxTokens?: number }, disableThinking: boolean) {
+  return fetch(`${GEMINI_API_BASE}/${model}:streamGenerateContent?alt=sse`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: params.system }] },
+      contents: toGeminiContents(params.messages),
+      // 2.5+/3.x model lines default "thinking" (hidden chain-of-thought
+      // tokens generated before the visible reply) to ON — great for hard
+      // reasoning tasks, ~5-8x latency for a chat mentor that just needs a
+      // direct answer (measured ~40s vs ~7-8s on the same prompt).
+      generationConfig: buildGenerationConfig(params.maxTokens ?? 1024, disableThinking),
+    }),
+  });
+}
+
 export async function* streamMentorReply(params: {
   system: string;
   messages: MentorChatMessage[];
@@ -92,25 +124,20 @@ export async function* streamMentorReply(params: {
   const apiKey = requireApiKey();
   const model = process.env.MENTOR_CHAT_MODEL || DEFAULT_MODEL;
 
-  const res = await fetch(`${GEMINI_API_BASE}/${model}:streamGenerateContent?alt=sse`, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: params.system }] },
-      contents: toGeminiContents(params.messages),
-      generationConfig: {
-        maxOutputTokens: params.maxTokens ?? 1024,
-        // 2.5+/3.x model lines default "thinking" (hidden chain-of-thought
-        // tokens generated before the visible reply) to ON — great for hard
-        // reasoning tasks, ~5-8x latency for a chat mentor that just needs a
-        // direct answer (measured ~40s vs ~7-8s on the same prompt). NOTE:
-        // "-flash-lite" model ids have been observed rejecting this field
-        // with 400 INVALID_ARGUMENT rather than ignoring it — don't repoint
-        // MENTOR_CHAT_MODEL at a lite variant without checking that first.
-        thinkingConfig: { thinkingBudget: 0 },
-      },
-    }),
-  });
+  let res = await fetchGeminiStream(model, apiKey, params, true);
+
+  // A 503 here means Gemini itself is overloaded, not a config mistake —
+  // retrying the exact same model won't help, but a different model/alias
+  // is frequently fine at the same moment (measured). Anything else
+  // (400/403/404/429) is a real config/quota problem an admin needs to see,
+  // so those still go straight to throwForBadResponse below instead of
+  // being silently papered over by the fallback.
+  if (res.status === 503 && model !== FALLBACK_MODEL) {
+    // Whether or not the fallback itself succeeds, it's the more relevant
+    // response from here on — either the actual stream to consume, or the
+    // error that should reach the user instead of the stale primary 503.
+    res = await fetchGeminiStream(FALLBACK_MODEL, apiKey, params, false);
+  }
 
   if (!res.ok) {
     await throwForBadResponse(res);
@@ -154,21 +181,29 @@ export async function* streamMentorReply(params: {
   return { inputTokens, outputTokens };
 }
 
-/** Non-streamed call on the cheap/fast background-task model tier. */
-export async function completeMentorTask(params: { system?: string; messages: MentorChatMessage[]; maxTokens?: number }): Promise<string> {
-  const apiKey = requireApiKey();
-  const model = process.env.MENTOR_BACKGROUND_MODEL || DEFAULT_MODEL;
-
-  const res = await fetch(`${GEMINI_API_BASE}/${model}:generateContent`, {
+function fetchGeminiGenerate(model: string, apiKey: string, params: { system?: string; messages: MentorChatMessage[]; maxTokens?: number }, disableThinking: boolean) {
+  return fetch(`${GEMINI_API_BASE}/${model}:generateContent`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
     body: JSON.stringify({
       ...(params.system ? { systemInstruction: { parts: [{ text: params.system }] } } : {}),
       contents: toGeminiContents(params.messages),
-      generationConfig: { maxOutputTokens: params.maxTokens ?? 512, thinkingConfig: { thinkingBudget: 0 } },
+      generationConfig: buildGenerationConfig(params.maxTokens ?? 512, disableThinking),
     }),
     signal: AbortSignal.timeout(20000),
   });
+}
+
+/** Non-streamed call on the cheap/fast background-task model tier. */
+export async function completeMentorTask(params: { system?: string; messages: MentorChatMessage[]; maxTokens?: number }): Promise<string> {
+  const apiKey = requireApiKey();
+  const model = process.env.MENTOR_BACKGROUND_MODEL || DEFAULT_MODEL;
+
+  let res = await fetchGeminiGenerate(model, apiKey, params, true);
+
+  if (res.status === 503 && model !== FALLBACK_MODEL) {
+    res = await fetchGeminiGenerate(FALLBACK_MODEL, apiKey, params, false);
+  }
 
   if (!res.ok) {
     await throwForBadResponse(res);
