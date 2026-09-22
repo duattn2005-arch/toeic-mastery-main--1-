@@ -867,3 +867,180 @@ mạng và kết nối DB thật):
 `prisma migrate deploy` sau khi cài extension `vector`, cấu hình
 `ANTHROPIC_API_KEY`/`VOYAGE_API_KEY`, `npm run dev`) — báo lại bất kỳ lỗi
 nào gặp phải khi test, tôi sẽ sửa tiếp.
+
+---
+
+## 10. Giai đoạn 10 — Cổng cấp độ B (Beginner) → I (Intermediate)
+
+> Trạng thái: **Đề xuất, chờ duyệt.** Chưa migrate DB, chưa viết code. Nguồn:
+> 2 tài liệu spec do anh/chị gửi ("Luồng dữ liệu Cấp B" và "Luồng dữ liệu Cấp
+> I"), đối chiếu với schema + service layer AI Mentor hiện có (mục 1-9).
+> Cấp A và luồng AI Mentor tổng thể **chưa nằm trong phạm vi mục này**, sẽ
+> gộp tiếp khi anh/chị gửi.
+
+### 10.0 Việc cần làm ở đây không phải xây từ đầu
+
+Đọc kỹ 2 spec cho thấy cơ chế "làm bài kiểm tra để mở khóa, sai đâu học lại
+đó" mà anh/chị mô tả **đã có sẵn gần đủ trong hệ thống**, chỉ đang chạy ở cấp
+độ *từng dimension* (mỗi Part/chủ điểm ngữ pháp có ladder EASY→MEDIUM→HARD
+riêng — mục 1.3, `skill-mastery.ts`), chứ chưa có khái niệm *cấp độ tổng của
+cả người dùng* (B/I/A). Việc của giai đoạn này là thêm **một lớp điều phối
+mỏng** trên các mảnh đã có, không viết lại gì:
+
+| Thuật ngữ trong spec | Model/hàm đã có, tái dùng thẳng |
+|---|---|
+| "Nhãn kiến thức" | `SkillDimensionType` (`PART` / `GRAMMAR_TOPIC`) + `dimensionKey` — đã đúng ý "mỗi câu hỏi gắn 1 nhãn nối tới khúc bài học" (`Question.grammarTopicSlug`) |
+| "Placement test" | `generatePlacementTest()` — đã sinh đúng bài composite theo tỉ trọng thật của từng Part (`mentor-test-generator.ts:107`) |
+| "Tích lũy dữ liệu học cấp B/I" | `recordAttemptOutcomes()` — đã tự cộng dồn `SkillMastery` (EWMA) mỗi lần nộp bài luyện tập, không cần code thêm |
+| "Học bù 1-3 nhãn yếu nhất" | `getWeakestDimensions()` — đã có sẵn top-N nhãn yếu theo `masteryScore`, dùng chung với `recommendation.ts` |
+| "Gate test / thi lại đúng nhãn đã bù" | `generateMentorTest({dimensionType, dimensionKey})` — đã chọn câu từ ngân hàng đúng 1 nhãn, tự loại câu đã gặp trong 14 ngày |
+| "Ôn từ vựng liên quan khi học bù" | `UserVocabulary` + SRS (`spaced-repetition.ts`) — đã có, chỉ cần trỏ đúng chủ đề |
+
+Ba đoạn spec bị hiểu nhầm là "chưa có gì" ở lần đọc trước (memory cũ) — nay
+đính chính: hạ tầng chấm điểm/mở khóa/chọn câu-không-tự-sinh **đã chạy thật**,
+không phải thiết kế trên giấy.
+
+### 10.1 Cái thực sự còn thiếu (additive, không đụng bảng đang chạy)
+
+```prisma
+// Cờ cấp độ TỔNG của người dùng — khác hẳn SkillUnlock (vốn là mở khóa độ
+// khó theo TỪNG dimension). Đặt trên Profile vì tại một thời điểm một người
+// dùng chỉ ở đúng 1 cấp, không cần bảng lịch sử riêng cho MVP.
+enum MentorLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+// model Profile { ... +
+  mentorLevel          MentorLevel @default(BEGINNER) @map("mentor_level")
+  mentorLevelUpdatedAt DateTime?   @map("mentor_level_updated_at")
+// }
+
+// Đánh dấu MentorTest nào là "bài Gate lên cấp" (khác placement thường và
+// khác mini-test học bù 1 nhãn — cả 3 vẫn dùng chung bảng MentorTest).
+// model MentorTest { ... +
+  levelGateTarget MentorLevel? @map("level_gate_target")
+// }
+```
+
+- **Hàm điều kiện đủ dữ liệu mới cho thi Gate** (`isEligibleForLevelGate`) —
+  hiện KHÔNG có hàm nào chặn việc này; `generateMentorTest`/`generatePlacementTest`
+  tạo bài bất cứ lúc nào không cần đủ mẫu. Cần thêm, đúng số spec đưa ra:
+  Cấp B ≈100 câu tổng + mỗi **nhãn cốt lõi** ≥10 câu; Cấp I ≥200 câu + mỗi
+  nhãn ≥15 câu (mục 10.2 nói vì sao "nhãn cốt lõi" cần anh/chị chốt danh
+  sách).
+- **Bộ chấm 3 nhánh** (`evaluateLevelGate`) — khác `MentorTest.passThreshold`
+  hiện có (chỉ nhị phân PASS/FAIL). Cần hàm mới: input là kết quả câu đúng/sai
+  theo từng nhãn trong đúng bài Gate vừa làm, output là 1 trong 3 nhánh
+  (≥80% lên cấp / 50-79% học bù có mục tiêu / <50% quay lại nền tảng) kèm
+  danh sách nhãn hổng.
+- **Lọc nhiễu theo thời gian làm bài** — tin vui: `AttemptAnswer.timeSpentSec`
+  **đã có sẵn trong DB từ trước** (không phải "chưa chắc đã ghi log" như spec
+  Cấp B lo ở mục 3). Áp dụng được ngay cho cả B lẫn I, không cần migration
+  mới cho phần luyện tập tích lũy. Riêng bảng `MentorTestQuestion` (câu trong
+  chính bài Gate Test) hiện **chưa có cột thời gian** — nếu muốn lọc nhiễu
+  ngay trên bài Gate (không chỉ trên dữ liệu luyện tập dẫn tới nó), cần thêm
+  1 cột (`answerDurationSec`) — việc nhỏ, additive.
+- **"Hồ sơ bàn giao" B→I** — không cần bảng mới. Đó là một hàm gom lại dữ
+  liệu đã có sẵn rải rác (`SkillMastery` theo từng nhãn, `Profile.currentScore`,
+  điểm Gate Test vừa đậu, streak) thành 1 object hiển thị UI/log — đúng các
+  mục spec liệt kê ở "Đầu ra bàn giao cho cấp I" đều map được vào field đã
+  tồn tại, không thiếu field nào.
+
+### 10.2 Việc cần anh/chị chốt trước khi viết migration/code thật
+
+Đây không phải câu hỏi mình tự nghĩ ra để hỏi cho có — cả 3 điểm dưới đây
+**chính người review nội bộ của anh/chị cũng đang tranh luận dở** (thấy được
+qua comment track-changes giấu trong file `.docx` Cấp I, chưa chốt xong):
+
+1. **Ngưỡng phân loại**: bản thân file Cấp I có 1 đoạn viết
+   "Placement <80% → B, ≥80% → I, ≥85% → A" mà chính người review gắn cờ
+   "đang mâu thuẫn", sau đó thảo luận nghiêng về hướng: **mỗi cấp dùng chung
+   một bộ ngưỡng cố định trên chính bài kiểm tra của cấp đó** — ≥80% đạt lên
+   cấp kế / 50-79% học bù / <50% học lại — chứ không phải % tích lũy so với
+   một kỳ thi TOEIC đầy đủ. Mình sẽ code theo hướng này (khớp cả 2 file spec
+   ở phần bảng chi tiết) trừ khi anh/chị chốt số khác. Xin **anh/chị xác
+   nhận lại bằng 1 câu** để mình không code nhầm hướng đã bị chính team gắn
+   cờ nghi vấn.
+2. **Đo thời gian làm bài cho Cấp B**: comment yêu cầu bổ sung cho B nếu kỹ
+   thuật làm được ("chưa chính xác phải tính được tgian mới đánh giá tốt
+   được"). Đã xác nhận ở mục 10.1: **làm được ngay**, dữ liệu đã ghi log sẵn.
+   Đề xuất: áp dụng lọc nhiễu thời gian (loại câu <10s hoặc >120s khi tính %
+   nhãn) cho **cả B lẫn I**, đồng nhất một luật thay vì mỗi cấp một kiểu.
+3. **Danh sách "nhãn cốt lõi"** dùng để tính đủ mẫu thi Gate (B: ≥10 câu/nhãn,
+   I: ≥15 câu/nhãn) — 2 file spec chỉ mô tả bằng ví dụ ("giới từ", "thì hiện
+   tại đơn", "Part 5 - Mệnh đề quan hệ"...), chưa có danh sách đóng. Mình có
+   thể tự đề xuất từ danh sách `GrammarTopic`/`TestPart` đang có thật trong
+   DB rồi gửi anh/chị duyệt — nói 1 câu là mình làm ngay, không cần đợi
+   thêm gì khác.
+4. **Tín hiệu "số lần bấm hỏi AI Mentor trong lúc làm bài"** (spec Cấp B mục
+   3 hỏi bên kỹ thuật xác nhận) — kiểm tra thật: **chưa có**, hệ thống hiện
+   chỉ gắn `originQuestionId` khi mở hội thoại từ 1 câu cụ thể, không đếm số
+   lần bấm. Theo đúng spec cho phép ("nếu chưa có thì bỏ khỏi luật xử lý"),
+   mình sẽ bỏ tín hiệu này trừ khi anh/chị muốn thêm.
+
+### 10.3 Sơ đồ luồng (khớp model thật)
+
+```mermaid
+flowchart TD
+    A[User mới] --> B[generatePlacementTest]
+    B --> C{Điểm ước lượng >= 80%?}
+    C -- Có --> D[Gợi ý nhảy thẳng Cấp I]
+    C -- Không/Chưa làm --> E[mentorLevel = BEGINNER]
+    E --> F[Luyện tập bình thường<br/>recordAttemptOutcomes cộng dồn SkillMastery]
+    F --> G{isEligibleForLevelGate B?<br/>~100 câu + moi nhan cot loi >=10}
+    G -- Chưa đủ --> F
+    G -- Đủ --> H[generateMentorTest levelGateTarget=INTERMEDIATE]
+    H --> I[evaluateLevelGate 3 nhánh]
+    I -- ">=80%, không nhãn Hổng" --> J[mentorLevel = INTERMEDIATE<br/>buildLevelHandoffSummary]
+    I -- "50-79%, 1-3 nhãn yếu" --> K[getWeakestDimensions top3<br/>generateMentorTest học bù đúng nhãn]
+    I -- "<50%, nhiều nhãn Hổng" --> L[Khúc bài học nền tảng<br/>của mọi nhãn Hổng]
+    K --> F
+    L --> F
+    J --> M[Cấp I: bắt buộc đặt targetScore/examDate<br/>nếu chưa có]
+    M --> N[Luyện tập nâng cao<br/>lọc nhiễu timeSpentSec khi rollup SkillMastery]
+    N --> O{isEligibleForLevelGate I?<br/>200 câu + moi nhan >=15}
+    O -- Chưa đủ --> N
+    O -- Đủ --> P[Gate Test I<br/>levelGateTarget=ADVANCED]
+    P --> Q[evaluateLevelGate 3 nhánh]
+    Q -- ">=80%" --> R[Hồ sơ bàn giao sang Cấp A<br/>ngoài phạm vi mục này]
+    Q -- "50-79% / <50%" --> S[Học bù / học lại nền tảng<br/>giảm độ khó câu hỏi]
+    S --> N
+```
+
+### 10.4 Một chỗ lệch với hành vi đang chạy — cần anh/chị quyết định
+
+`onboarding.ts` hiện tại hỏi `targetScore`/`examDate` **ngay từ đầu**, trước
+cả khi có `LearningPath` (mục 2.1) — dùng chung cho mọi cấp. Trong khi đó
+spec Cấp I mô tả như thể Cấp B **không** thu thập mục tiêu, và việc hỏi mục
+tiêu là mốc đầu tiên khi vào Cấp I ("khắc phục điểm còn thiếu từ Cấp B").
+Hai lựa chọn, anh/chị chọn 1:
+- **Giữ nguyên** hành vi hiện tại (hỏi sớm ngay từ đầu, dùng chung cho cả B
+  và I) — ít việc sửa nhất, không đúng 100% câu chữ spec nhưng không đổi UX
+  đang chạy.
+- **Đổi theo spec**: Cấp B không hỏi mục tiêu, chỉ hỏi khi lên Cấp I — cần
+  sửa `onboarding.ts` bỏ bước hỏi mục tiêu sớm, dời sang lúc `mentorLevel`
+  chuyển INTERMEDIATE.
+
+### 10.5 Tài liệu/dữ liệu cần anh/chị gửi thêm để mình thu thập câu hỏi + phân bổ cho người dùng
+
+- **Trả lời 4 điểm mở ở mục 10.2** (ngưỡng, lọc nhiễu B, danh sách nhãn cốt
+  lõi — hoặc đồng ý để mình tự đề xuất từ DB thật, tín hiệu số lần hỏi AI).
+- **Chọn 1 trong 2 hướng ở mục 10.4** (thời điểm hỏi mục tiêu điểm/ngày thi).
+- **Cấp A + luồng AI Mentor tổng thể** (đã hẹn gửi sau) — để nối tiếp I→A
+  không phải sửa lại phần vừa làm ở đây.
+- **Câu hỏi mới cho ngân hàng**: theo `docs/content-sources.md`, kho hiện tại
+  chỉ ở mức seed tối thiểu (30 câu Part 5, ~12 Part 6, 15 Part 7, 10 hội
+  thoại Part 3, 4 bài Part 4, 6 Part 1, 10 Part 2). Gate Test cần ~100-200
+  câu không lặp trong 14 ngày + mỗi nhãn cốt lõi ≥10-15 câu để chấm chính
+  xác — kho hiện tại gần chắc chắn KHÔNG đủ cho một người dùng đi hết vòng
+  Cấp B rồi Cấp I mà không bị thiếu câu hoặc lặp câu. Gửi câu hỏi mới theo
+  đúng format `prisma/seed-data/*.ts`, hoặc dùng "Admin → Câu hỏi → Import
+  JSON" (không cần đợi mình) — ưu tiên phủ đúng các Part/nhãn sẽ chọn làm
+  "cốt lõi" ở mục 10.2.
+- **Ảnh Part 1 thật + audio Listening thật** — gap đã ghi sẵn trong
+  `docs/content-sources.md`, chỉ nêu lại vì Gate Test chắc chắn có câu Part
+  1/Listening: nếu muốn Gate Test dùng ảnh/audio thật thay vì
+  text-to-speech tạm thời, cần gửi hoặc cho phép lấy từ nguồn free đã duyệt
+  (Unsplash/Pexels/Pixabay).
