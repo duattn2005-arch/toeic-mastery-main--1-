@@ -5,6 +5,7 @@ import { recordMentorTestOutcomes, unlockNextDifficulty } from "@/lib/services/m
 import { ScoreCalculator } from "@/lib/services/score-calculator";
 import { LISTENING_PARTS } from "@/lib/constants/toeic";
 import { generateLearningPath } from "@/lib/services/mentor/learning-path-generator";
+import { evaluateLevelGate, recordLevelAdvance } from "@/lib/services/mentor/level-gate";
 import type { TestPart } from "@/generated/prisma/enums";
 
 interface SubmittedAnswer {
@@ -37,7 +38,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const mentorTest = await db.mentorTest.findUnique({
     where: { id: mentorTestId },
-    include: { questions: { include: { question: { select: { correctLabel: true, part: true } } } } },
+    include: { questions: { include: { question: { select: { correctLabel: true, part: true, grammarTopicSlug: true } } } } },
   });
   if (!mentorTest || mentorTest.userId !== profile.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -50,20 +51,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const answerMap = new Map(answers.map((a) => [a.questionId, a.selectedLabel]));
 
   let correctCount = 0;
-  const graded: { part: TestPart; isCorrect: boolean }[] = [];
+  const graded: { part: TestPart; grammarTopicSlug: string | null; isCorrect: boolean }[] = [];
   await Promise.all(
     mentorTest.questions.map((q) => {
       const selectedLabel = answerMap.get(q.questionId) ?? null;
       const isCorrect = selectedLabel !== null && selectedLabel === q.question.correctLabel;
       if (isCorrect) correctCount += 1;
-      graded.push({ part: q.question.part, isCorrect });
+      graded.push({ part: q.question.part, grammarTopicSlug: q.question.grammarTopicSlug, isCorrect });
       return db.mentorTestQuestion.update({ where: { id: q.id }, data: { selectedLabel, isCorrect, answeredAt: new Date() } });
     })
   );
 
   const totalCount = mentorTest.questions.length;
   const score = totalCount > 0 ? correctCount / totalCount : 0;
-  const passed = score >= mentorTest.passThreshold;
+
+  // A LEVEL_GATE test's real pass/fail is the 3-branch outcome (ADVANCE vs
+  // REMEDIATE/RESTART), not the plain score>=passThreshold check every
+  // other MentorTest uses — those disagree exactly when the overall score
+  // clears 80% but a core label is still "Hổng" (evaluateLevelGate calls
+  // that REMEDIATE, not a pass). Compute the branch up front so `passed`
+  // and the stored `status` stay consistent with it instead of the
+  // generic threshold.
+  const levelGateResult = mentorTest.dimensionType === "LEVEL_GATE" ? evaluateLevelGate(graded) : null;
+  const passed = levelGateResult ? levelGateResult.branch === "ADVANCE" : score >= mentorTest.passThreshold;
 
   await db.mentorTest.update({
     where: { id: mentorTestId },
@@ -71,12 +81,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   });
 
   // Fire-and-forget: fold this test's outcomes back into SkillMastery, and
-  // on a pass, record that this dimension's tested tier is now cleared.
-  // A PLACEMENT test has no real "dimension" to unlock (dimensionKey is
-  // just "ALL") and no pass/fail bar worth gating content behind — see the
-  // estimated-score branch below for what it does instead.
+  // on a pass, record that this dimension's tested tier is now cleared. A
+  // PLACEMENT or LEVEL_GATE test has no real single "dimension" to unlock
+  // (dimensionKey is "ALL" / a target MentorLevel, not a SkillUnlock key)
+  // — see the estimated-score/levelGate branches below for what they do
+  // instead.
   void recordMentorTestOutcomes(profile.id, mentorTestId).catch((err) => console.error("recordMentorTestOutcomes failed", err));
-  if (passed && mentorTest.dimensionType !== "VOCAB_TOPIC" && mentorTest.dimensionType !== "PLACEMENT") {
+  if (passed && mentorTest.dimensionType !== "VOCAB_TOPIC" && mentorTest.dimensionType !== "PLACEMENT" && mentorTest.dimensionType !== "LEVEL_GATE") {
     void unlockNextDifficulty(profile.id, mentorTest.dimensionType, mentorTest.dimensionKey, mentorTest.difficulty).catch((err) =>
       console.error("unlockNextDifficulty failed", err)
     );
@@ -84,6 +95,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   let estimatedScore: { listening: number; reading: number; total: number } | null = null;
   let onboardingCompleted = false;
+  let levelGate: { branch: "ADVANCE" | "REMEDIATE" | "RESTART"; fromLevel: string; toLevel: string; weakLabels: string[]; hongLabels: string[] } | null = null;
 
   if (mentorTest.dimensionType === "PLACEMENT") {
     const isListening = (part: TestPart) => (LISTENING_PARTS as string[]).includes(part);
@@ -136,5 +148,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
-  return NextResponse.json({ mentorTestId, score, passed, correctCount, totalCount, estimatedScore, onboardingCompleted });
+  // AI Mentor level gate (mục 10 trong docs/ai-mentor-architecture.md):
+  // dimensionKey on a LEVEL_GATE test is the target MentorLevel being
+  // tested for ("INTERMEDIATE"/"ADVANCED") — evaluateLevelGate re-derives
+  // the 3-branch outcome straight from this submission's own graded
+  // questions rather than lifetime SkillMastery, so the result reflects
+  // exactly what the learner just did on this Gate Test.
+  if (levelGateResult) {
+    const fromLevel = profile.mentorLevel;
+    const toLevel = mentorTest.dimensionKey;
+    const result = levelGateResult;
+
+    if (result.branch === "ADVANCE") {
+      void recordLevelAdvance({
+        userId: profile.id,
+        fromLevel,
+        toLevel: toLevel as typeof profile.mentorLevel,
+        overallScore: result.overallScore,
+        labelScores: result.labelScores,
+      }).catch((err) => console.error("recordLevelAdvance failed", err));
+    }
+
+    levelGate = {
+      branch: result.branch,
+      fromLevel,
+      toLevel,
+      weakLabels: result.weakLabels.map((l) => l.dimensionKey),
+      hongLabels: result.hongLabels.map((l) => l.dimensionKey),
+    };
+  }
+
+  return NextResponse.json({ mentorTestId, score, passed, correctCount, totalCount, estimatedScore, onboardingCompleted, levelGate });
 }

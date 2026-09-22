@@ -90,7 +90,10 @@ export interface WeakDimension {
 }
 
 const MIN_SAMPLE_SIZE = 5;
-const WEAK_THRESHOLD = 0.6;
+/** Below this mastery score counts as "weak"/"Hổng" — reused as-is by
+ * level-gate.ts's REMEDIATE/RESTART classification so the two features
+ * never disagree on what "weak enough to matter" means. */
+export const WEAK_THRESHOLD = 0.6;
 
 /** Weakest-first dimensions with a real sample size — the same bar
  * recommendation.ts already uses, kept consistent so the rule-based

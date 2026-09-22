@@ -187,6 +187,22 @@ enum SkillDimensionType {
   /** A composite, all-Parts diagnostic (see generatePlacementTest) rather
    * than one specific skill dimension — dimensionKey is always "ALL". */
   PLACEMENT
+  /** The Beginner→Intermediate/Intermediate→Advanced level-up exam (see
+   * level-gate.ts) — dimensionKey is the target MentorLevel being tested
+   * for ("INTERMEDIATE"/"ADVANCED"), not a real skill dimension. */
+  LEVEL_GATE
+}
+
+/**
+ * The learner's overall mentor-guided tier, layered ON TOP OF the existing
+ * per-dimension SkillMastery/SkillUnlock engine — advancing here requires
+ * passing a LEVEL_GATE MentorTest (see level-gate.ts), not just accumulating
+ * XP. See docs/ai-mentor-architecture.md section 10.
+ */
+enum MentorLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
 }
 
 enum LearningPathStatus {
@@ -276,6 +292,11 @@ model Profile {
    */
   onboardingStatus        OnboardingStatus @default(NOT_STARTED) @map("onboarding_status")
   onboardingCompletedAt   DateTime? @map("onboarding_completed_at")
+  /** Beginner→Intermediate→Advanced tier from the AI Mentor level gate (see
+   * level-gate.ts) — independent of the per-dimension SkillUnlock ladder.
+   * Every learner starts BEGINNER regardless of onboardingStatus/placement
+   * score; only a passed LEVEL_GATE MentorTest advances it. */
+  mentorLevel             MentorLevel      @default(BEGINNER) @map("mentor_level")
   dailyStudyTargetMinutes Int       @default(30) @map("daily_study_target_minutes")
   streakCount             Int       @default(0) @map("streak_count")
   longestStreak           Int       @default(0) @map("longest_streak")

@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { PART_META } from "@/lib/constants/toeic";
+import { PART_META, MENTOR_LEVEL_LABEL_VI } from "@/lib/constants/toeic";
 import { getWeakestDimensions } from "./skill-mastery";
 import { searchRelevantContent, type RetrievedChunk } from "./mentor-rag";
 import type { MentorChatMessage } from "./llm-client";
@@ -38,7 +38,7 @@ export async function buildMentorContext(input: MentorContextInput): Promise<Men
   const [profile, weakDimensions, memory, recentMessages, originQuestion, todayDay, ragChunks] = await Promise.all([
     db.profile.findUniqueOrThrow({
       where: { id: input.userId },
-      select: { currentScore: true, targetScore: true, examDate: true },
+      select: { currentScore: true, targetScore: true, examDate: true, mentorLevel: true },
     }),
     getWeakestDimensions(input.userId, 5),
     db.mentorMemory.findUnique({ where: { userId: input.userId }, select: { summary: true } }),
@@ -90,9 +90,9 @@ export async function buildMentorContext(input: MentorContextInput): Promise<Men
     "Khi (và chỉ khi) bạn thấy nên cho học viên làm một bài kiểm tra nhanh để xác nhận đã hiểu, kết thúc toàn bộ câu trả lời bằng đúng MỘT dòng theo định dạng sau, không thêm gì sau đó: [[RECOMMEND_TEST:PART:PART5]] (thay PART5 bằng Part liên quan) hoặc [[RECOMMEND_TEST:GRAMMAR_TOPIC:slug-chu-de]] (thay bằng đúng dimensionKey điểm yếu được liệt kê bên dưới). Hệ thống sẽ tự chọn câu hỏi thật từ ngân hàng đề đã được admin duyệt — bạn không cần và không được tự soạn câu hỏi.",
     "Khi học viên hỏi kiểu \"tiếp theo tôi nên học gì\", \"hôm nay nên học gì\", hoặc bất cứ lúc nào bạn thấy nên đề xuất bước đi tiếp theo trong lộ trình cá nhân hóa của họ, kết thúc toàn bộ câu trả lời bằng đúng MỘT dòng, không thêm gì sau đó: [[RECOMMEND_NEXT_STEPS]]. Hệ thống sẽ tự chọn gợi ý cụ thể dựa trên dữ liệu thật của học viên (có thể bị giới hạn số lần/ngày với tài khoản Free) — bạn không cần tự liệt kê danh sách bài học, chỉ cần chèn đúng dòng marker này.",
     "",
-    `Hồ sơ học viên: điểm hiện tại ${profile.currentScore ?? "chưa có"}, mục tiêu ${profile.targetScore ?? "chưa đặt"}, ngày thi ${
-      profile.examDate ? profile.examDate.toISOString().slice(0, 10) : "chưa đặt"
-    }.`,
+    `Hồ sơ học viên: đang ở ${MENTOR_LEVEL_LABEL_VI[profile.mentorLevel]}, điểm hiện tại ${profile.currentScore ?? "chưa có"}, mục tiêu ${
+      profile.targetScore ?? "chưa đặt"
+    }, ngày thi ${profile.examDate ? profile.examDate.toISOString().slice(0, 10) : "chưa đặt"}.`,
   ];
 
   if (memory?.summary) {

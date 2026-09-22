@@ -6,7 +6,9 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { SkillDimensionType, Difficulty, TestPart } from "@/generated/prisma/enums";
 
 const DEFAULT_QUESTION_COUNT = 5;
-const RECENT_EXCLUSION_DAYS = 14;
+/** Also reused by level-gate.ts so a Gate Test never resurfaces a question
+ * the learner just answered in normal practice. */
+export const RECENT_EXCLUSION_DAYS = 14;
 
 export class UnsupportedMentorTestDimensionError extends Error {}
 
@@ -172,7 +174,7 @@ export async function generatePlacementTest(params: { userId: string; conversati
   return { mentorTestId: mentorTest.id, questionCount: selectedIds.length };
 }
 
-function shuffle<T>(items: T[]): T[] {
+export function shuffle<T>(items: T[]): T[] {
   const copy = [...items];
   for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));

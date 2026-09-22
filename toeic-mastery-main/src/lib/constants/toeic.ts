@@ -30,3 +30,9 @@ export const DIFFICULTY_LABEL_VI: Record<string, string> = {
   MEDIUM: "Trung bình",
   HARD: "Khó",
 };
+
+export const MENTOR_LEVEL_LABEL_VI: Record<string, string> = {
+  BEGINNER: "Cấp B (Beginner)",
+  INTERMEDIATE: "Cấp I (Intermediate)",
+  ADVANCED: "Cấp A (Advanced)",
+};

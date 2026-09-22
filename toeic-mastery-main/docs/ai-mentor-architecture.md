@@ -1088,3 +1088,73 @@ sửa `onboarding.ts`.
 Cấp A + luồng AI Mentor tổng thể, câu hỏi mới cho ngân hàng (kho hiện tại
 vẫn ở mức seed tối thiểu). Ảnh Part 1 + audio Listening thật **đã xác nhận
 có sẵn trên live** (2026-09-22), gỡ khỏi danh sách còn thiếu.
+
+### 10.7 Đính chính điểm 2 mục 10.6 + đã code xong (2026-09-22)
+
+**Đính chính (không xoá quyết định cũ, chỉ sửa lại cho đúng thực tế code):**
+điểm 2 ở mục 10.6 nói lọc nhiễu thời gian "làm được ngay vì dữ liệu đã ghi
+log sẵn" — **sai**. Grep lại toàn bộ `src/` thì `AttemptAnswer.timeSpentSec`
+tồn tại trong schema từ migration đầu tiên nhưng **chưa route nào từng ghi
+giá trị vào nó** (cả `attempts/[id]/submit` lẫn `attempts/[id]/sync` chỉ
+cập nhật `selectedLabel`/`isFlagged`, không đụng `timeSpentSec`) — cột này
+luôn là 0 cho mọi answer. Áp bộ lọc "<10s hoặc >120s" lên một cột toàn số 0
+sẽ loại bỏ 100% dữ liệu chứ không phải lọc nhiễu. Quyết định thực tế: **bỏ
+bộ lọc thời gian khỏi Gate Test cho tới khi có một luồng ghi
+`timeSpentSec` thật** (cần thiết kế riêng: sync theo câu, không chỉ theo
+attempt) — xem comment trong `evaluateLevelGate` ở `level-gate.ts`.
+
+**Đã code xong gate B→I** (Cấp I→A dùng chung engine, sẵn sàng khi có dữ
+liệu):
+
+- `prisma/schema.prisma`: enum `MentorLevel` (BEGINNER/INTERMEDIATE/
+  ADVANCED), `Profile.mentorLevel` (default BEGINNER), thêm giá trị
+  `LEVEL_GATE` vào `SkillDimensionType`. 2 migration file viết tay theo
+  đúng convention Prisma đã dùng ở migration `..._add_mentor_test_
+  placement_dimension` (tách `ALTER TYPE ADD VALUE` ra file riêng):
+  `20260922130000_add_level_gate_dimension`,
+  `20260922130100_add_mentor_level`. **Chưa chạy migration này lên DB nào**
+  — máy Javis không có `DATABASE_URL`/quyền truy cập DB thật của anh, cần
+  anh tự chạy `npx prisma migrate deploy` (hoặc `migrate dev` ở local) khi
+  sẵn sàng.
+- `src/lib/services/mentor/level-gate.ts` (mới): `getCoreLabels`,
+  `isEligibleForLevelGate`, `generateLevelGateTest`, `evaluateLevelGate` (3
+  nhánh ADVANCE/REMEDIATE/RESTART), `recordLevelAdvance` (bump
+  `mentorLevel` + ghi "hồ sơ bàn giao" vào `MentorMemory.summary`).
+- `src/app/api/mentor/level-gate/route.ts` (mới): `GET` trả trạng thái đủ
+  điều kiện, `POST` tạo Gate Test — cùng nguyên tắc với
+  `placement-test/route.ts`: chỉ tạo khi người dùng bấm nút, AI không tự
+  tạo qua chat.
+- `src/app/api/mentor/tests/[id]/submit/route.ts`: thêm nhánh `LEVEL_GATE`
+  — `passed`/`status` giờ lấy theo đúng nhánh 3-way (không còn lệch với
+  trường hợp tổng ≥80% nhưng vẫn còn nhãn Hổng).
+- UI: `mentor-level-gate-card.tsx` (mới, hiện tiến độ + nút "Làm Gate
+  Test", gắn ở `mentor-page-client.tsx` khi không còn ở màn onboarding đầu
+  tiên); `mentor-test-runner-dialog.tsx` thêm nhánh hiển thị cho
+  `LEVEL_GATE`. `mentor-context.ts` thêm dòng cấp độ hiện tại vào system
+  prompt chat.
+- Đơn giản hoá đã ghi rõ trong code: nhãn cốt lõi Cấp I = toàn bộ 7
+  `TestPart` **cộng** toàn bộ 15 `GrammarTopic` (không tách riêng theo
+  Part 5/6 như câu chữ spec, vì `SkillMastery` chưa có dimension ghép
+  PART+GRAMMAR_TOPIC) — xem comment `getCoreLabels` trong `level-gate.ts`.
+
+**Đã kiểm tra xong (2026-09-22, sau khi `npm ci` cài đủ node_modules):**
+- `npx prisma generate` chạy sạch với schema mới (enum `MentorLevel` +
+  giá trị `LEVEL_GATE`).
+- `npx tsc --noEmit` sạch trên toàn bộ 10 file vừa thêm/sửa. Bắt được và
+  đã sửa 1 lỗi cú pháp thật: comment JSDoc trong
+  `src/app/api/mentor/level-gate/route.ts` viết `*mention*/recommend`,
+  chuỗi `*/` nằm giữa in nghiêng markdown vô tình đóng sớm khối comment,
+  làm gãy phần code phía sau - đã bỏ cặp `*` thừa. Lỗi `LayoutProps` còn
+  lại ở `src/app/layout.tsx` không liên quan tới thay đổi này - đó là kiểu
+  Next.js tự sinh vào `.next/types` lúc build/dev, máy này chưa build lần
+  nào nên `tsc` đứng một mình không thấy được, không phải lỗi do gate
+  B→I gây ra.
+- `npx eslint` trên đúng 10 file đó: không lỗi, không cảnh báo.
+
+**Chưa làm / cần xác nhận thêm:**
+- Chưa chạy migration lên DB thật (anh cần tự chạy, xem trên).
+- Chưa build luồng ghi `timeSpentSec` thật (nêu ở trên) - làm riêng nếu
+  anh muốn bật lại bộ lọc nhiễu thời gian.
+- Cấp I→A tái dùng đúng engine này (`GateableLevel` đã có sẵn nhánh
+  INTERMEDIATE→ADVANCED) nhưng nhãn cốt lõi cho Cấp A thì chưa - chờ spec
+  Cấp A anh hẹn gửi sau.

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { MentorChatThread } from "./mentor-chat-thread";
 import { MentorComposer } from "./mentor-composer";
 import { MentorOnboardingCard } from "./mentor-onboarding-card";
+import { MentorLevelGateCard } from "./mentor-level-gate-card";
 import { MentorConversationSwitcher } from "./mentor-conversation-switcher";
 import type { MentorMessagesPage } from "./types";
 import type { MentorConversationSummary } from "@/lib/data/mentor";
@@ -45,6 +46,7 @@ export function MentorPageClient({
       </div>
 
       {showOnboarding && <MentorOnboardingCard />}
+      {!showOnboarding && <MentorLevelGateCard />}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card/50 p-4 shadow-soft">
         {/* Keyed on conversationId so switching conversations remounts fresh

@@ -7,7 +7,7 @@ import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { PART_META } from "@/lib/constants/toeic";
+import { PART_META, MENTOR_LEVEL_LABEL_VI } from "@/lib/constants/toeic";
 import { AnswerOptionList } from "@/components/exam/answer-option";
 import { AudioPlayer } from "@/components/exam/audio-player";
 import { TtsAudioPlayer } from "@/components/exam/tts-audio-player";
@@ -51,6 +51,7 @@ interface SubmitResult {
   totalCount: number;
   estimatedScore: { listening: number; reading: number; total: number } | null;
   onboardingCompleted: boolean;
+  levelGate: { branch: "ADVANCE" | "REMEDIATE" | "RESTART"; fromLevel: string; toLevel: string; weakLabels: string[]; hongLabels: string[] } | null;
 }
 
 /** Consecutive questions sharing one Passage (Part 3/4/6/7's shared
@@ -129,6 +130,7 @@ export function MentorTestRunnerDialog({
   const answeredCount = Object.keys(answers).length;
   const alreadyGraded = test?.status === "PASSED" || test?.status === "FAILED";
   const isPlacement = test?.dimensionType === "PLACEMENT";
+  const isLevelGate = test?.dimensionType === "LEVEL_GATE";
   const groups = React.useMemo(() => (test ? groupQuestions(test.questions) : []), [test]);
   const questionIndex = React.useMemo(() => new Map(test?.questions.map((q, i) => [q.id, i]) ?? []), [test]);
 
@@ -147,11 +149,13 @@ export function MentorTestRunnerDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{isPlacement ? "Bài kiểm tra đầu vào" : "Bài kiểm tra nhanh"}</DialogTitle>
+          <DialogTitle>{isPlacement ? "Bài kiểm tra đầu vào" : isLevelGate ? "Gate Test lên cấp" : "Bài kiểm tra nhanh"}</DialogTitle>
           <DialogDescription>
             {isPlacement
               ? "Khoảng 50 câu trải đều các Part, lấy từ ngân hàng câu hỏi mới nhất — để AI Mentor ước tính điểm xuất phát của bạn."
-              : "Vượt qua để AI Mentor mở khóa phần khó hơn cho bạn."}
+              : isLevelGate
+                ? "Đạt từ 80% và không nhãn kiến thức nào yếu để lên cấp tiếp theo. Dưới ngưỡng đó, AI Mentor sẽ chỉ đúng phần cần học lại."
+                : "Vượt qua để AI Mentor mở khóa phần khó hơn cho bạn."}
           </DialogDescription>
         </DialogHeader>
 
@@ -211,7 +215,7 @@ export function MentorTestRunnerDialog({
 
         {result && (
           <div className="flex flex-col items-center gap-3 py-6 text-center">
-            {isPlacement || result.passed ? (
+            {isPlacement || (result.levelGate ? result.levelGate.branch === "ADVANCE" : result.passed) ? (
               <CheckCircle2 className="size-12 text-success" />
             ) : (
               <XCircle className="size-12 text-destructive" />
@@ -230,6 +234,24 @@ export function MentorTestRunnerDialog({
                     ? "AI Mentor đã ghi nhận điểm xuất phát và đang chuẩn bị lộ trình học cá nhân hóa cho bạn."
                     : "AI Mentor đã ghi nhận điểm xuất phát của bạn."}
                 </p>
+              </>
+            ) : result.levelGate ? (
+              <>
+                {result.levelGate.branch === "ADVANCE" && (
+                  <p className="text-sm text-muted-foreground">
+                    Chúc mừng! Bạn đã lên {MENTOR_LEVEL_LABEL_VI[result.levelGate.toLevel] ?? result.levelGate.toLevel}.
+                  </p>
+                )}
+                {result.levelGate.branch === "REMEDIATE" && (
+                  <p className="text-sm text-muted-foreground">
+                    Gần đạt rồi — hãy ôn lại {result.levelGate.weakLabels.join(", ")} rồi làm lại Gate Test sau.
+                  </p>
+                )}
+                {result.levelGate.branch === "RESTART" && (
+                  <p className="text-sm text-muted-foreground">
+                    Chưa đạt ngưỡng cần thiết — hãy học lại nền tảng của: {result.levelGate.hongLabels.join(", ")} rồi thử lại.
+                  </p>
+                )}
               </>
             ) : (
               <p className="text-sm text-muted-foreground">
