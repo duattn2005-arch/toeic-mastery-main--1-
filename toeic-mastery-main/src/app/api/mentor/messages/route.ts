@@ -91,8 +91,18 @@ export async function POST(request: Request) {
   await db.mentorMessage.create({ data: { conversationId, role: "USER", content } });
 
   const encoder = new TextEncoder();
+  // Wrapped in try/catch: the client can disconnect (tab closed, navigation)
+  // mid-stream, which the runtime reacts to by closing/erroring the
+  // controller on its own — any enqueue() after that throws
+  // ERR_INVALID_STATE. That's expected once nobody's listening, not a bug
+  // worth crashing the request over (was surfacing as unhandled "mentor
+  // chat stream failed" errors in prod logs, one per abandoned request).
   const send = (controller: ReadableStreamDefaultController<Uint8Array>, event: string | null, data: unknown) => {
-    controller.enqueue(encoder.encode(`${event ? `event: ${event}\n` : ""}data: ${JSON.stringify(data)}\n\n`));
+    try {
+      controller.enqueue(encoder.encode(`${event ? `event: ${event}\n` : ""}data: ${JSON.stringify(data)}\n\n`));
+    } catch {
+      // Stream already closed on the client side — nothing left to deliver.
+    }
   };
 
   const stream = new ReadableStream<Uint8Array>({
@@ -184,7 +194,13 @@ export async function POST(request: Request) {
         const message = err instanceof MentorConfigError ? err.message : "AI Mentor tạm thời gặp sự cố, vui lòng thử lại.";
         send(controller, "error", { error: message });
       } finally {
-        controller.close();
+        // Same as send() above — close() throws if the client already
+        // disconnected and the runtime beat us to closing the controller.
+        try {
+          controller.close();
+        } catch {
+          // Already closed — fine.
+        }
         void maybeSummarizeMemory(profile.id).catch((err) => console.error("maybeSummarizeMemory failed", err));
       }
     },

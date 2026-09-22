@@ -92,7 +92,17 @@ export async function* streamMentorReply(params: {
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: params.system }] },
       contents: toGeminiContents(params.messages),
-      generationConfig: { maxOutputTokens: params.maxTokens ?? 1024 },
+      generationConfig: {
+        maxOutputTokens: params.maxTokens ?? 1024,
+        // 2.5+/3.x model lines default "thinking" (hidden chain-of-thought
+        // tokens generated before the visible reply) to ON — great for hard
+        // reasoning tasks, pure latency overhead for a chat mentor that just
+        // needs a direct answer. Explicitly zeroing the budget keeps replies
+        // fast regardless of which model MENTOR_CHAT_MODEL ends up pointing
+        // at (2.0-flash silently ignores this field — it has no thinking
+        // mode to begin with).
+        thinkingConfig: { thinkingBudget: 0 },
+      },
     }),
   });
 
@@ -149,7 +159,7 @@ export async function completeMentorTask(params: { system?: string; messages: Me
     body: JSON.stringify({
       ...(params.system ? { systemInstruction: { parts: [{ text: params.system }] } } : {}),
       contents: toGeminiContents(params.messages),
-      generationConfig: { maxOutputTokens: params.maxTokens ?? 512 },
+      generationConfig: { maxOutputTokens: params.maxTokens ?? 512, thinkingConfig: { thinkingBudget: 0 } },
     }),
     signal: AbortSignal.timeout(20000),
   });
