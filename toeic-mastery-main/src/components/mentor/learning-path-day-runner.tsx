@@ -38,16 +38,9 @@ const ITEM_META: Record<LearningItemType, { icon: LucideIcon; title: string }> =
   TIP: { icon: Lightbulb, title: "Mẹo học tập hôm nay" },
 };
 
-function partsHref(focusParts: TestPart[], skill: "LISTENING" | "READING"): string {
-  const part = focusParts.find((p) => PART_META[p].skill === skill);
-  if (!part) return skill === "LISTENING" ? "/listening" : "/reading";
-  const meta = PART_META[part];
-  return skill === "LISTENING" ? `/listening/${meta.slug}` : `/reading/${meta.slug}`;
-}
-
 /** null for MINI_TEST (handled as its own "Bắt đầu" flow) and TIP (nothing
  * to navigate to — it's just a note). */
-function hrefForItem(itemType: LearningItemType, focusParts: TestPart[]): string | null {
+function hrefForItem(itemType: LearningItemType, focusParts: TestPart[], orderIndex: number): string | null {
   switch (itemType) {
     case "GRAMMAR_LESSON":
       return "/grammar";
@@ -56,9 +49,17 @@ function hrefForItem(itemType: LearningItemType, focusParts: TestPart[]): string
     case "VOCAB_REVIEW":
       return "/vocabulary/review";
     case "LISTENING_PRACTICE":
-      return partsHref(focusParts, "LISTENING");
-    case "READING_PRACTICE":
-      return partsHref(focusParts, "READING");
+    case "READING_PRACTICE": {
+      // buildDayItems (learning-path-generator.ts) creates one of these per
+      // focus Part via focusParts.forEach((part, i) => ... orderIndex: i),
+      // so orderIndex IS that Part's index into focusParts — not just "the
+      // day's first Listening/Reading Part" (two Listening items on the
+      // same day used to both link to whichever Part came first).
+      const part = focusParts[orderIndex];
+      if (!part) return itemType === "LISTENING_PRACTICE" ? "/listening" : "/reading";
+      const meta = PART_META[part];
+      return `/${meta.skill === "LISTENING" ? "listening" : "reading"}/${meta.slug}`;
+    }
     case "FULL_TEST":
       return "/practice";
     case "MINI_TEST":
@@ -119,7 +120,7 @@ export function LearningPathDayRunner({
         const meta = ITEM_META[item.itemType];
         const Icon = meta.icon;
         const done = item.status === "DONE";
-        const href = item.refHref ?? hrefForItem(item.itemType, focusParts);
+        const href = item.refHref ?? hrefForItem(item.itemType, focusParts, item.orderIndex);
         const title = item.refTitle ?? meta.title;
 
         return (
