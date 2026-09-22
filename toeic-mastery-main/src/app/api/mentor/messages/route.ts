@@ -25,11 +25,28 @@ function toJsonInput<T>(value: T): Prisma.InputJsonValue {
  * RECOMMEND_NEXT_STEPS marker (see mentor-access.ts).
  */
 
-/** Trailing directive markers the model is instructed to emit (see
+/**
+ * Trailing directive markers the model is instructed to emit (see
  * mentor-context.ts's system prompt) instead of a native tool call —
  * hand-rolled since this project isn't using the Vercel AI SDK's
- * tool-calling plumbing. At most one marker per reply. */
-const RECOMMEND_TEST_MARKER = /\n?\[\[RECOMMEND_TEST:(PART|GRAMMAR_TOPIC):([A-Za-z0-9_-]+)\]\]\s*$/;
+ * tool-calling plumbing. At most one marker per reply.
+ *
+ * The dimensionType group deliberately matches ANY word characters, not
+ * just the two the system prompt actually allows (PART/GRAMMAR_TOPIC) —
+ * the model has been observed drifting off-instruction under unusual
+ * phrasing and emitting other SkillDimensionType-looking words (e.g.
+ * "VOCABULARY_TOPIC", which isn't even the real enum name — that's
+ * VOCAB_TOPIC, itself deliberately unsupported here since vocab review
+ * goes through the SRS flashcard queue, not a generated MentorTest — see
+ * mentor-test-generator.ts's UnsupportedMentorTestDimensionError). Matching
+ * broadly here means ANY such marker still gets stripped from the visible
+ * reply below; RECOMMEND_TEST_SUPPORTED_TYPES then gates which ones
+ * actually attempt to generate a test, so a drifted marker degrades to "no
+ * test offered" instead of leaking `[[RECOMMEND_TEST:...]]` raw text into
+ * the chat bubble the way it used to (2026-09-22 bug report).
+ */
+const RECOMMEND_TEST_MARKER = /\n?\[\[RECOMMEND_TEST:(\w+):([A-Za-z0-9_-]+)\]\]\s*$/;
+const RECOMMEND_TEST_SUPPORTED_TYPES = new Set<SkillDimensionType>(["PART", "GRAMMAR_TOPIC"]);
 const RECOMMEND_NEXT_STEPS_MARKER = /\n?\[\[RECOMMEND_NEXT_STEPS\]\]\s*$/;
 
 type MentorAttachments =
@@ -99,17 +116,29 @@ export async function POST(request: Request) {
             let attachments: MentorAttachments;
 
             if (testMarker) {
-              try {
-                const [, dimensionType, dimensionKey] = testMarker;
-                const test = await generateMentorTest({
-                  userId: profile.id,
-                  dimensionType: dimensionType as SkillDimensionType,
-                  dimensionKey,
-                  conversationId,
-                });
-                attachments = { type: "mentor_test", mentorTestId: test.mentorTestId, questionCount: test.questionCount };
-              } catch (err) {
-                console.error("generateMentorTest from chat marker failed", err);
+              const [, dimensionType, dimensionKey] = testMarker;
+              if (RECOMMEND_TEST_SUPPORTED_TYPES.has(dimensionType as SkillDimensionType)) {
+                try {
+                  const test = await generateMentorTest({
+                    userId: profile.id,
+                    dimensionType: dimensionType as SkillDimensionType,
+                    dimensionKey,
+                    conversationId,
+                  });
+                  attachments = { type: "mentor_test", mentorTestId: test.mentorTestId, questionCount: test.questionCount };
+                } catch (err) {
+                  console.error("generateMentorTest from chat marker failed", err);
+                }
+              } else {
+                // Model emitted a RECOMMEND_TEST marker with a dimensionType
+                // outside what mentor-context.ts's system prompt instructs
+                // (PART/GRAMMAR_TOPIC only) — the marker text is already
+                // excluded from visibleText above, so this just means no
+                // test attachment gets offered this turn. Logged so a
+                // recurring drift (e.g. the model consistently reaching for
+                // a vocabulary-flavored marker) is visible to fix in the
+                // prompt rather than silently swallowed forever.
+                console.error("mentor chat emitted unsupported RECOMMEND_TEST dimensionType", { dimensionType, dimensionKey });
               }
             } else if (nextStepsMarker) {
               if (!access.unlimitedNextSteps && (await hasReachedNextStepsLimit(profile))) {
