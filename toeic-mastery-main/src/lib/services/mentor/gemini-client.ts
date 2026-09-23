@@ -100,7 +100,13 @@ async function throwForBadResponse(res: Response): Promise<never> {
   throw new Error(`Gemini API error ${res.status}: ${bodyText}`);
 }
 
-function fetchGeminiStream(model: string, apiKey: string, params: { system: string; messages: MentorChatMessage[]; maxTokens?: number }, disableThinking: boolean) {
+function fetchGeminiStream(
+  model: string,
+  apiKey: string,
+  params: { system: string; messages: MentorChatMessage[]; maxTokens?: number },
+  disableThinking: boolean,
+  signal?: AbortSignal
+) {
   return fetch(`${GEMINI_API_BASE}/${model}:streamGenerateContent?alt=sse`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
@@ -113,7 +119,88 @@ function fetchGeminiStream(model: string, apiKey: string, params: { system: stri
       // direct answer (measured ~40s vs ~7-8s on the same prompt).
       generationConfig: buildGenerationConfig(params.maxTokens ?? 1024, disableThinking),
     }),
+    signal,
   });
+}
+
+/** How long to give the configured model before hedging — measured
+ * successful replies land well under this on a normal day (2.6-11s), so
+ * this only fires once something's actually stuck, not on ordinary
+ * variance. */
+const HEDGE_DELAY_MS = 4_000;
+
+function sleep(ms: number): Promise<"timeout"> {
+  return new Promise((resolve) => setTimeout(() => resolve("timeout"), ms));
+}
+
+type StreamOutcome = { ok: true; res: Response } | { ok: false; error: unknown };
+
+interface StreamAttempt {
+  controller: AbortController;
+  settled: Promise<StreamOutcome>;
+}
+
+function startStreamAttempt(
+  model: string,
+  apiKey: string,
+  params: { system: string; messages: MentorChatMessage[]; maxTokens?: number },
+  disableThinking: boolean
+): StreamAttempt {
+  const controller = new AbortController();
+  const settled = fetchGeminiStream(model, apiKey, params, disableThinking, controller.signal)
+    .then((res): StreamOutcome => ({ ok: true, res }))
+    .catch((error): StreamOutcome => ({ ok: false, error }));
+  return { controller, settled };
+}
+
+/**
+ * Free-tier latency is highly variable on the exact same model+prompt
+ * (measured 2.6s-68s) — most of that variance is Google's own queueing, not
+ * something a retry-after-failure can fix since there's no failure to react
+ * to yet. Hedging trades extra (still free) API calls for cutting off that
+ * long tail: if the configured model hasn't answered within HEDGE_DELAY_MS,
+ * fire the fallback model too and run with whichever actually comes back
+ * first, aborting the other so it doesn't sit there burning quota.
+ */
+async function getGeminiStreamResponse(
+  apiKey: string,
+  params: { system: string; messages: MentorChatMessage[]; maxTokens?: number },
+  primaryModel: string
+): Promise<Response> {
+  const primary = startStreamAttempt(primaryModel, apiKey, params, true);
+
+  if (primaryModel === FALLBACK_MODEL) {
+    const outcome = await primary.settled;
+    if (!outcome.ok) throw outcome.error;
+    return outcome.res;
+  }
+
+  const primaryOrTimeout = await Promise.race([primary.settled, sleep(HEDGE_DELAY_MS)]);
+  if (primaryOrTimeout !== "timeout") {
+    if (!primaryOrTimeout.ok) throw primaryOrTimeout.error;
+    return primaryOrTimeout.res;
+  }
+
+  // Still no response after the hedge window — race the fallback alongside
+  // the still-pending primary instead of replacing it, since the primary
+  // may well finish (and finish first) a moment later.
+  const fallback = startStreamAttempt(FALLBACK_MODEL, apiKey, params, false);
+
+  const primaryDone = primary.settled.then((r) => ({ winner: primary, loser: fallback, outcome: r }));
+  const fallbackDone = fallback.settled.then((r) => ({ winner: fallback, loser: primary, outcome: r }));
+
+  let { winner, loser, outcome } = await Promise.race([primaryDone, fallbackDone]);
+  if (!outcome.ok) {
+    // That side failed at the network level (aborted/DNS/etc — a plain bad
+    // HTTP status still comes through as `ok: true` here) — the other one
+    // hasn't been touched yet, so give it the chance to actually answer.
+    const other = winner === primary ? fallbackDone : primaryDone;
+    ({ winner, loser, outcome } = await other);
+    if (!outcome.ok) throw outcome.error;
+  }
+
+  loser.controller.abort();
+  return outcome.res;
 }
 
 export async function* streamMentorReply(params: {
@@ -124,7 +211,7 @@ export async function* streamMentorReply(params: {
   const apiKey = requireApiKey();
   const model = process.env.MENTOR_CHAT_MODEL || DEFAULT_MODEL;
 
-  let res = await fetchGeminiStream(model, apiKey, params, true);
+  let res = await getGeminiStreamResponse(apiKey, params, model);
 
   // A 503 here means Gemini itself is overloaded, not a config mistake —
   // retrying the exact same model won't help, but a different model/alias
