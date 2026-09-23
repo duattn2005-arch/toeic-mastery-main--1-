@@ -88,6 +88,25 @@ export async function declareBankTransferAction(planKey: ProPlanKey): Promise<Ac
   return { orderId, amount };
 }
 
+export interface PaymentStatusResult {
+  status: "PENDING" | "SUCCESS" | "FAILED" | "REFUNDED";
+}
+
+/**
+ * Polled by ProCard while a bank-transfer QR is on screen (see
+ * /api/sepay/webhook, which is what actually flips this to SUCCESS) so the
+ * learner sees confirmation the moment the transfer lands instead of
+ * needing to reload the page. Scoped to the calling user's own orders —
+ * an orderId alone is guessable-ish (embeds a timestamp), so this must
+ * never leak another learner's payment status.
+ */
+export async function checkPaymentStatusAction(orderId: string): Promise<PaymentStatusResult | { error: string }> {
+  const profile = await requireUser();
+  const payment = await db.payment.findUnique({ where: { orderId }, select: { userId: true, status: true } });
+  if (!payment || payment.userId !== profile.id) return { error: "Không tìm thấy đơn hàng" };
+  return { status: payment.status };
+}
+
 /** Dormant until a real VNPay merchant account exists — kept working and
  * tested, just not currently wired into the pricing page's UI. */
 export async function createUpgradeCheckoutAction(planKey: ProPlanKey): Promise<ActionResult> {

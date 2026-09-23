@@ -5,7 +5,7 @@ import { Check, Copy, Crown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { declareBankTransferAction } from "@/lib/actions/billing";
+import { declareBankTransferAction, checkPaymentStatusAction } from "@/lib/actions/billing";
 import { ActivationCodeForm } from "@/components/billing/activation-code-form";
 import {
   PRO_PLANS,
@@ -49,13 +49,36 @@ function CopyableRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** SePay's webhook fires within seconds of the transfer landing — polling
+ * this often feels near-instant without hammering the server while the
+ * learner sits on this screen. */
+const PAYMENT_POLL_MS = 3_000;
+
 export function ProCard({ offer }: { offer: NewMemberOfferState }) {
   const [planKey, setPlanKey] = React.useState<ProPlanKey>("THREE_MONTHS");
   const [pending, startTransition] = React.useTransition();
   const [order, setOrder] = React.useState<{ orderId: string; planKey: ProPlanKey; amount: number } | null>(null);
+  const [confirmed, setConfirmed] = React.useState(false);
 
   const plan = PRO_PLANS[planKey];
   const displayPrice = offer.eligible ? discountedPriceVnd(planKey) : plan.amountVnd;
+
+  // Polls for the auto-confirmation the SePay webhook writes (see
+  // /api/sepay/webhook + checkPaymentStatusAction) — without this the
+  // learner would sit looking at a QR code with zero feedback once they've
+  // actually paid, only finding out on their next reload.
+  React.useEffect(() => {
+    if (!order || confirmed) return;
+    const intervalId = setInterval(async () => {
+      const result = await checkPaymentStatusAction(order.orderId);
+      if ("error" in result) return; // transient/unexpected — just try again next tick
+      if (result.status === "SUCCESS") {
+        setConfirmed(true);
+        toast.success("Thanh toán thành công! Tài khoản của bạn đã được nâng cấp Pro 🎉");
+      }
+    }, PAYMENT_POLL_MS);
+    return () => clearInterval(intervalId);
+  }, [order, confirmed]);
 
   function handleUpgrade() {
     startTransition(async () => {
@@ -64,6 +87,7 @@ export function ProCard({ offer }: { offer: NewMemberOfferState }) {
         toast.error(result.error ?? "Không tạo được yêu cầu, vui lòng thử lại");
         return;
       }
+      setConfirmed(false);
       setOrder({ orderId: result.orderId, planKey, amount: result.amount });
     });
   }
@@ -77,7 +101,20 @@ export function ProCard({ offer }: { offer: NewMemberOfferState }) {
         <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">PHỔ BIẾN NHẤT</span>
       </div>
 
-      {order ? (
+      {order && confirmed ? (
+        <div className="mt-5 flex flex-col items-center gap-3 py-6 text-center">
+          <span className="flex size-14 items-center justify-center rounded-full bg-success/15 text-success">
+            <Check className="size-7" />
+          </span>
+          <p className="text-lg font-semibold">Thanh toán thành công!</p>
+          <p className="text-sm text-muted-foreground">
+            Tài khoản của bạn đã được nâng cấp <b>PRO ({PRO_PLANS[order.planKey].label})</b>.
+          </p>
+          <Button type="button" size="lg" className="mt-2" onClick={() => window.location.reload()}>
+            Bắt đầu dùng ngay
+          </Button>
+        </div>
+      ) : order ? (
         <div className="mt-5 flex flex-col items-center gap-4 text-center">
           <p className="text-sm font-medium">
             Quét mã để chuyển khoản <span className="text-primary">{order.amount.toLocaleString("vi-VN")}₫</span> (
@@ -95,9 +132,12 @@ export function ProCard({ offer }: { offer: NewMemberOfferState }) {
             <CopyableRow label="Chủ tài khoản" value={BANK_TRANSFER_INFO.accountName} />
             <CopyableRow label="Nội dung chuyển khoản" value={order.orderId} />
           </div>
+          <p className="flex items-center gap-2 rounded-lg bg-primary/5 p-3 text-xs text-primary">
+            <Loader2 className="size-3.5 shrink-0 animate-spin" />
+            Đang chờ chuyển khoản — trang sẽ tự cập nhật ngay khi nhận được tiền, không cần tải lại.
+          </p>
           <p className="rounded-lg bg-warning/10 p-3 text-xs text-warning">
-            Nhập đúng nội dung <strong>{order.orderId}</strong> khi chuyển khoản để admin xác nhận đúng đơn. Pro sẽ được kích hoạt trong vài giờ sau khi
-            admin duyệt.
+            Nhập đúng nội dung <strong>{order.orderId}</strong> khi chuyển khoản để hệ thống tự đối chiếu đúng đơn.
           </p>
           <Button type="button" variant="outline" size="sm" onClick={() => setOrder(null)}>
             Chọn gói khác
