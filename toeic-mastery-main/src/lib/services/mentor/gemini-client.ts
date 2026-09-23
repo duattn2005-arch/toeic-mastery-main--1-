@@ -40,14 +40,97 @@ interface GeminiStreamChunk {
   usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
 }
 
-function requireApiKey(): string {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+/**
+ * Multiple free-tier API keys round-robined — free-tier quota is enforced
+ * per underlying Google Cloud project, so several keys from the SAME
+ * project share one quota pool (no help), but keys from separate projects
+ * each bring their own (this is what actually fixed the 429s: one key's
+ * daily allowance getting hammered by both real traffic and hedging's extra
+ * calls). GEMINI_KEYS="key1,key2,key3" is preferred; a lone GEMINI_API_KEY
+ * still works as a single-key pool for anyone who hasn't set that up.
+ */
+interface TrackedKey {
+  key: string;
+  /** epoch ms; usable again once Date.now() >= this */
+  cooldownUntil: number;
+}
+
+const DEFAULT_KEY_COOLDOWN_MS = 60_000;
+/** Google's 429 body sometimes names a daily quota metric but still gives a
+ * short retryDelay hint — never park a key longer than this even if that
+ * hint is mis-parsed as huge, and never shorter than the floor above. */
+const MAX_KEY_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+
+class GeminiKeyPool {
+  private keys: TrackedKey[];
+  private cursor = 0;
+
+  constructor(keys: string[]) {
+    this.keys = keys.map((key) => ({ key, cooldownUntil: 0 }));
+  }
+
+  get size(): number {
+    return this.keys.length;
+  }
+
+  /** Round-robin over non-cooling-down keys; null once every key is
+   * currently parked. */
+  next(): string | null {
+    for (let i = 0; i < this.keys.length; i++) {
+      const idx = (this.cursor + i) % this.keys.length;
+      const candidate = this.keys[idx];
+      if (candidate.cooldownUntil <= Date.now()) {
+        this.cursor = (idx + 1) % this.keys.length;
+        return candidate.key;
+      }
+    }
+    return null;
+  }
+
+  markCooldown(key: string, ms: number): void {
+    const tracked = this.keys.find((k) => k.key === key);
+    if (tracked) tracked.cooldownUntil = Date.now() + Math.min(Math.max(ms, DEFAULT_KEY_COOLDOWN_MS), MAX_KEY_COOLDOWN_MS);
+  }
+}
+
+function loadGeminiKeys(): string[] {
+  const multi = process.env.GEMINI_KEYS;
+  if (multi) {
+    return multi
+      .split(",")
+      .map((k) => k.trim())
+      .filter(Boolean);
+  }
+  const single = process.env.GEMINI_API_KEY;
+  return single ? [single.trim()] : [];
+}
+
+/** Module-level singleton so cooldown state (and the round-robin cursor)
+ * actually persists across requests within this Node process — a fresh
+ * pool per call would forget every cooldown immediately. */
+let sharedKeyPool: GeminiKeyPool | null = null;
+function requireKeyPool(): GeminiKeyPool {
+  if (!sharedKeyPool) sharedKeyPool = new GeminiKeyPool(loadGeminiKeys());
+  if (sharedKeyPool.size === 0) {
     throw new MentorConfigError(
-      "AI Mentor chưa được cấu hình: thiếu biến môi trường GEMINI_API_KEY trên server. Lấy API key miễn phí tại https://aistudio.google.com/apikey rồi thêm vào file .env."
+      "AI Mentor chưa được cấu hình: thiếu biến môi trường GEMINI_API_KEY (hoặc GEMINI_KEYS=\"key1,key2,...\" để dùng nhiều key) trên server. Lấy API key miễn phí tại https://aistudio.google.com/apikey rồi thêm vào file .env."
     );
   }
-  return apiKey;
+  return sharedKeyPool;
+}
+
+/** Parses Google's 429 body for its own suggested retry delay (e.g. "23s"),
+ * falling back to DEFAULT_KEY_COOLDOWN_MS when absent/unparseable. */
+function parseRetryDelayMs(bodyText: string): number {
+  try {
+    const parsed = JSON.parse(bodyText) as { error?: { details?: { "@type"?: string; retryDelay?: string }[] } };
+    const detail = parsed.error?.details?.find((d) => d["@type"]?.includes("RetryInfo"));
+    const match = detail?.retryDelay?.match(/^(\d+(?:\.\d+)?)s$/);
+    if (match) return Math.round(parseFloat(match[1]) * 1000);
+  } catch {
+    // Not JSON, or no RetryInfo — fall through to the default.
+  }
+  return DEFAULT_KEY_COOLDOWN_MS;
 }
 
 function toGeminiContents(messages: MentorChatMessage[]) {
@@ -208,22 +291,45 @@ export async function* streamMentorReply(params: {
   messages: MentorChatMessage[];
   maxTokens?: number;
 }): AsyncGenerator<string, MentorUsage, void> {
-  const apiKey = requireApiKey();
+  const pool = requireKeyPool();
   const model = process.env.MENTOR_CHAT_MODEL || DEFAULT_MODEL;
 
-  let res = await getGeminiStreamResponse(apiKey, params, model);
+  let res: Response | undefined;
 
-  // A 503 here means Gemini itself is overloaded, not a config mistake —
-  // retrying the exact same model won't help, but a different model/alias
-  // is frequently fine at the same moment (measured). Anything else
-  // (400/403/404/429) is a real config/quota problem an admin needs to see,
-  // so those still go straight to throwForBadResponse below instead of
-  // being silently papered over by the fallback.
-  if (res.status === 503 && model !== FALLBACK_MODEL) {
-    // Whether or not the fallback itself succeeds, it's the more relevant
-    // response from here on — either the actual stream to consume, or the
-    // error that should reach the user instead of the stale primary 503.
-    res = await fetchGeminiStream(FALLBACK_MODEL, apiKey, params, false);
+  // Outer loop rotates API KEYS on 429 (quota exhausted — a different
+  // key/project has its own separate allowance); the model hedging/fallback
+  // inside getGeminiStreamResponse/the 503 check below is a different axis
+  // (same key, different model) and stays nested inside one key's attempt.
+  for (let attempt = 0; attempt < pool.size; attempt++) {
+    const apiKey = pool.next();
+    if (!apiKey) break; // every key currently cooling down from a recent 429
+
+    res = await getGeminiStreamResponse(apiKey, params, model);
+
+    if (res.status === 429) {
+      pool.markCooldown(apiKey, parseRetryDelayMs(await res.text().catch(() => "")));
+      continue;
+    }
+
+    // A 503 here means Gemini itself is overloaded, not a config mistake —
+    // retrying the exact same model won't help, but a different model/alias
+    // is frequently fine at the same moment (measured). Anything else
+    // (400/403/404) is a real config problem an admin needs to see, so
+    // those still go straight to throwForBadResponse below instead of
+    // being silently papered over by the fallback.
+    if (res.status === 503 && model !== FALLBACK_MODEL) {
+      // Whether or not the fallback itself succeeds, it's the more relevant
+      // response from here on — either the actual stream to consume, or the
+      // error that should reach the user instead of the stale primary 503.
+      res = await fetchGeminiStream(FALLBACK_MODEL, apiKey, params, false);
+    }
+    break;
+  }
+
+  if (!res) {
+    throw new MentorConfigError(
+      "AI Mentor đã dùng hết hạn mức miễn phí của Gemini API trên tất cả API key đang có. Vui lòng thử lại sau ít phút, hoặc thêm GEMINI_KEYS mới trong .env."
+    );
   }
 
   if (!res.ok) {
@@ -283,13 +389,32 @@ function fetchGeminiGenerate(model: string, apiKey: string, params: { system?: s
 
 /** Non-streamed call on the cheap/fast background-task model tier. */
 export async function completeMentorTask(params: { system?: string; messages: MentorChatMessage[]; maxTokens?: number }): Promise<string> {
-  const apiKey = requireApiKey();
+  const pool = requireKeyPool();
   const model = process.env.MENTOR_BACKGROUND_MODEL || DEFAULT_MODEL;
 
-  let res = await fetchGeminiGenerate(model, apiKey, params, true);
+  let res: Response | undefined;
 
-  if (res.status === 503 && model !== FALLBACK_MODEL) {
-    res = await fetchGeminiGenerate(FALLBACK_MODEL, apiKey, params, false);
+  for (let attempt = 0; attempt < pool.size; attempt++) {
+    const apiKey = pool.next();
+    if (!apiKey) break;
+
+    res = await fetchGeminiGenerate(model, apiKey, params, true);
+
+    if (res.status === 429) {
+      pool.markCooldown(apiKey, parseRetryDelayMs(await res.text().catch(() => "")));
+      continue;
+    }
+
+    if (res.status === 503 && model !== FALLBACK_MODEL) {
+      res = await fetchGeminiGenerate(FALLBACK_MODEL, apiKey, params, false);
+    }
+    break;
+  }
+
+  if (!res) {
+    throw new MentorConfigError(
+      "AI Mentor đã dùng hết hạn mức miễn phí của Gemini API trên tất cả API key đang có. Vui lòng thử lại sau ít phút, hoặc thêm GEMINI_KEYS mới trong .env."
+    );
   }
 
   if (!res.ok) {
