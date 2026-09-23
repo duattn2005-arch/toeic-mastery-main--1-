@@ -56,10 +56,21 @@ export async function rejectPaymentAction(paymentId: string): Promise<ActionResu
   return {};
 }
 
-/** Reverses a completed payment: refunds don't un-grant Pro days already
- * consumed, but they do void any commission the referrer hasn't been paid
+/** Reverses a completed payment: revokes Pro immediately (the money is
+ * going back, so the paid access does too — not left to quietly lapse on
+ * its own expiry) and voids any commission the referrer hasn't been paid
  * out yet — a PAID commission stays paid (money already left the
- * business), matching how the withdrawal flow locks in a payout. */
+ * business), matching how the withdrawal flow locks in a payout.
+ *
+ * Clears proExpiresAt (not just plan → FREE) so a later legitimate
+ * purchase starts its own fresh expiry from that point instead of
+ * grantProDays extending from this refunded order's stale future date —
+ * see grantProDays' "extend from existing expiry if still in the future"
+ * logic. If this user has a *different*, still-valid Pro payment, an
+ * admin needs to re-grant it separately (e.g. the activation-code path) —
+ * refunding one order doesn't try to guess how much of another one's
+ * days should survive.
+ */
 export async function markPaymentRefundedAction(paymentId: string): Promise<ActionResult> {
   await requireAdmin();
 
@@ -69,6 +80,7 @@ export async function markPaymentRefundedAction(paymentId: string): Promise<Acti
 
   await db.$transaction([
     db.payment.update({ where: { id: paymentId }, data: { status: "REFUNDED", refundedAt: new Date() } }),
+    db.profile.update({ where: { id: payment.userId }, data: { plan: "FREE", proExpiresAt: null } }),
     db.commission.updateMany({
       where: { paymentId, status: { in: ["PENDING", "WITHDRAWABLE"] } },
       data: { status: "CANCELLED", cancelledAt: new Date(), fraudNote: "Giao dịch gốc đã bị hoàn tiền" },
