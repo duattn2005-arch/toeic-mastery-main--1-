@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Fragment } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Sparkles } from "lucide-react";
 import { db } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +58,11 @@ export default async function AdminQuestionsPage({
         </div>
         <div className="flex flex-wrap gap-2">
           <ImportQuestionsDialog testOptions={tests} />
+          <Button asChild variant="outline">
+            <Link href="/admin/questions/ai-generate">
+              <Sparkles className="size-4" /> AI tự sinh câu hỏi
+            </Link>
+          </Button>
           <Button asChild variant="outline">
             <Link href="/admin/questions/groups/new">
               <Plus className="size-4" /> Nhóm câu hỏi
