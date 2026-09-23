@@ -46,15 +46,18 @@ export function planPricePerDay(planKey: ProPlanKey): number {
   return Math.round(plan.amountVnd / plan.durationDays);
 }
 
-/** No VNPay merchant account yet — upgrades are confirmed manually against
- * this personal bank account until real payment-gateway credentials exist
- * (the VNPay integration in src/lib/services/vnpay.ts is still there, ready
- * to switch back on once a merchant account is set up). */
+/** No VNPay merchant account yet — upgrades are confirmed automatically via
+ * a SePay webhook (see /api/sepay/webhook) watching this exact account, so
+ * it must always match whichever account is actually connected in the SePay
+ * dashboard — changing one without the other silently breaks
+ * auto-confirmation (the webhook just never fires for a payment sent
+ * elsewhere). The VNPay integration in src/lib/services/vnpay.ts is still
+ * there, ready to switch back on once a merchant account is set up. */
 export const BANK_TRANSFER_INFO = {
   bankCode: "MB", // VietQR short code for MB Bank
   bankName: "MB Bank (Ngân hàng Quân đội)",
-  accountNumber: "6368603082005",
-  accountName: "NGUYEN BICH HOA",
+  accountNumber: "5333333333334",
+  accountName: "TRAN NHAT DUAT",
 } as const;
 
 /** VietQR's public, no-auth image API — generates an official, correctly
