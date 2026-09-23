@@ -31,7 +31,7 @@ export function streamMentorReply(params: { system: string; messages: anthropic.
   return resolveProvider() === "gemini" ? gemini.streamMentorReply(params) : anthropic.streamMentorReply(params);
 }
 
-export function completeMentorTask(params: { system?: string; messages: anthropic.MentorChatMessage[]; maxTokens?: number }) {
+export function completeMentorTask(params: { system?: string; messages: anthropic.MentorChatMessage[]; maxTokens?: number; timeoutMs?: number }) {
   return resolveProvider() === "gemini" ? gemini.completeMentorTask(params) : anthropic.completeMentorTask(params);
 }
 

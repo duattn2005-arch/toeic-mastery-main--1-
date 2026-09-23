@@ -374,7 +374,20 @@ export async function* streamMentorReply(params: {
   return { inputTokens, outputTokens };
 }
 
-function fetchGeminiGenerate(model: string, apiKey: string, params: { system?: string; messages: MentorChatMessage[]; maxTokens?: number }, disableThinking: boolean) {
+/** 20s fits the original use case (memory summarization: small maxTokens,
+ * fire-and-forget, fine to just give up and move on) but is too tight for
+ * completeMentorTask's other caller (admin AI question generation: much
+ * larger maxTokens, run synchronously with a human waiting, worth actually
+ * finishing rather than aborting) — see completeMentorTask's timeoutMs. */
+const DEFAULT_GENERATE_TIMEOUT_MS = 20_000;
+
+function fetchGeminiGenerate(
+  model: string,
+  apiKey: string,
+  params: { system?: string; messages: MentorChatMessage[]; maxTokens?: number },
+  disableThinking: boolean,
+  timeoutMs: number
+) {
   return fetch(`${GEMINI_API_BASE}/${model}:generateContent`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
@@ -383,14 +396,15 @@ function fetchGeminiGenerate(model: string, apiKey: string, params: { system?: s
       contents: toGeminiContents(params.messages),
       generationConfig: buildGenerationConfig(params.maxTokens ?? 512, disableThinking),
     }),
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 }
 
 /** Non-streamed call on the cheap/fast background-task model tier. */
-export async function completeMentorTask(params: { system?: string; messages: MentorChatMessage[]; maxTokens?: number }): Promise<string> {
+export async function completeMentorTask(params: { system?: string; messages: MentorChatMessage[]; maxTokens?: number; timeoutMs?: number }): Promise<string> {
   const pool = requireKeyPool();
   const model = process.env.MENTOR_BACKGROUND_MODEL || DEFAULT_MODEL;
+  const timeoutMs = params.timeoutMs ?? DEFAULT_GENERATE_TIMEOUT_MS;
 
   let res: Response | undefined;
 
@@ -398,7 +412,7 @@ export async function completeMentorTask(params: { system?: string; messages: Me
     const apiKey = pool.next();
     if (!apiKey) break;
 
-    res = await fetchGeminiGenerate(model, apiKey, params, true);
+    res = await fetchGeminiGenerate(model, apiKey, params, true, timeoutMs);
 
     if (res.status === 429) {
       pool.markCooldown(apiKey, parseRetryDelayMs(await res.text().catch(() => "")));
@@ -406,7 +420,7 @@ export async function completeMentorTask(params: { system?: string; messages: Me
     }
 
     if (res.status === 503 && model !== FALLBACK_MODEL) {
-      res = await fetchGeminiGenerate(FALLBACK_MODEL, apiKey, params, false);
+      res = await fetchGeminiGenerate(FALLBACK_MODEL, apiKey, params, false, timeoutMs);
     }
     break;
   }

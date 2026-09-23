@@ -57,6 +57,14 @@ function extractJson<T>(raw: string): T {
   }
 }
 
+/** completeMentorTask's own default (20s) is tuned for its other caller
+ * (fire-and-forget memory summarization) — this runs synchronously with an
+ * admin waiting on it, and these prompts (especially group generation) are
+ * long enough that free-tier latency variance (measured up to ~68s
+ * end-to-end elsewhere in this codebase) routinely blew past 20s. */
+const GENERATION_TIMEOUT_MS = 90_000;
+const VERIFY_TIMEOUT_MS = 45_000;
+
 const GENERATOR_SYSTEM_PROMPT =
   "Bạn là chuyên gia biên soạn đề thi TOEIC chuẩn ETS, kinh nghiệm lâu năm. Chỉ trả lời bằng đúng JSON hợp lệ được yêu cầu — không thêm markdown, không thêm giải thích ngoài JSON, không thêm chú thích.";
 
@@ -90,6 +98,7 @@ Trả về CHÍNH XÁC một mảng JSON, không có gì khác:
     system: GENERATOR_SYSTEM_PROMPT,
     messages: [{ role: "user", content: prompt }],
     maxTokens: Math.min(8000, 500 + count * 450),
+    timeoutMs: GENERATION_TIMEOUT_MS,
   });
   const parsed = extractJson<GeneratedSingleQuestion[]>(raw);
   if (!Array.isArray(parsed) || parsed.length === 0) throw new Error("AI không trả về một mảng câu hỏi hợp lệ.");
@@ -140,7 +149,12 @@ Trả về CHÍNH XÁC một object JSON, không có gì khác:
 }
 Mảng "questions" phải có đúng ${n} phần tử.`;
 
-  const raw = await completeMentorTask({ system: GENERATOR_SYSTEM_PROMPT, messages: [{ role: "user", content: prompt }], maxTokens: 3500 });
+  const raw = await completeMentorTask({
+    system: GENERATOR_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: prompt }],
+    maxTokens: 3500,
+    timeoutMs: GENERATION_TIMEOUT_MS,
+  });
   const parsed = extractJson<{ transcript?: string; text?: string; questions: GeneratedSingleQuestion[] }>(raw);
   if (!Array.isArray(parsed.questions) || parsed.questions.length === 0) throw new Error("AI không trả về danh sách câu hỏi hợp lệ cho nhóm này.");
   return { transcript: parsed.transcript, text: parsed.text, questions: parsed.questions };
@@ -165,6 +179,7 @@ Tự giải câu này một cách độc lập và khách quan, không được 
     system: "Bạn là chuyên gia TOEIC làm bài kiểm tra chất lượng, độc lập với người ra đề. Chỉ trả lời bằng đúng JSON được yêu cầu.",
     messages: [{ role: "user", content: prompt }],
     maxTokens: 300,
+    timeoutMs: VERIFY_TIMEOUT_MS,
   });
   try {
     const parsed = extractJson<{ answer: string }>(raw);
@@ -185,11 +200,17 @@ export async function generateVerifiedUngroupedQuestions(
   count: number
 ): Promise<UngroupedGenerationResult> {
   const batch = await generateUngroupedBatch(part, difficulty, count);
-  const rows: ImportQuestionInput[] = [];
 
-  for (const q of batch) {
-    if (!(await verifyQuestion("", q))) continue;
-    rows.push({
+  // Each question's verification is an independent LLM call — running them
+  // concurrently (rather than one after another) is what keeps a 5-question
+  // batch inside Nginx's proxy_read_timeout instead of summing every call's
+  // latency serially (this admin action runs synchronously behind that
+  // proxy, unlike the chat route's SSE stream).
+  const verified = await Promise.all(batch.map((q) => verifyQuestion("", q).then((ok) => (ok ? q : null))));
+
+  const rows: ImportQuestionInput[] = verified
+    .filter((q): q is GeneratedSingleQuestion => q !== null)
+    .map((q) => ({
       part,
       question: q.question,
       options: q.options,
@@ -198,8 +219,7 @@ export async function generateVerifiedUngroupedQuestions(
       difficulty,
       grammarTopicSlug: q.grammarTopicSlug || undefined,
       status: "DRAFT",
-    });
-  }
+    }));
 
   return { attempted: batch.length, rows };
 }
@@ -209,37 +229,37 @@ export interface GroupedGenerationResult {
   groups: QuestionGroupFormInput[];
 }
 
-export async function generateVerifiedGroups(
-  part: GroupedGenerationPart,
-  difficulty: Difficulty,
-  groupCount: number
-): Promise<GroupedGenerationResult> {
+async function generateAndVerifyOneGroup(part: GroupedGenerationPart, difficulty: Difficulty): Promise<{ attempted: number; group: QuestionGroupFormInput | null }> {
   const isAudio = part === "PART3" || part === "PART4";
-  const groups: QuestionGroupFormInput[] = [];
-  let attempted = 0;
+  const generated = await generateOneGroup(part, difficulty);
+  const context = generated.transcript ? `Bài nghe:\n${generated.transcript}` : generated.text ? `Đoạn văn:\n${generated.text}` : "";
 
-  for (let i = 0; i < groupCount; i++) {
-    const generated = await generateOneGroup(part, difficulty);
-    attempted += generated.questions.length;
+  // Verifying every question in the group concurrently, same reasoning as
+  // generateVerifiedUngroupedQuestions — this is what keeps a multi-group
+  // request from summing every single verification call's latency serially.
+  const verifiedOrNull = await Promise.all(
+    generated.questions.map((q) =>
+      verifyQuestion(context, q).then((ok) =>
+        ok
+          ? ({
+              prompt: q.question,
+              correctLabel: q.correctAnswer as GroupQuestionFormInput["correctLabel"],
+              explanationVi: q.explanation,
+              options: q.options.map((content, idx) => ({ label: OPTION_LABELS[idx], content })),
+            } satisfies GroupQuestionFormInput)
+          : null
+      )
+    )
+  );
+  const verifiedQuestions = verifiedOrNull.filter((q): q is GroupQuestionFormInput => q !== null);
 
-    const context = generated.transcript ? `Bài nghe:\n${generated.transcript}` : generated.text ? `Đoạn văn:\n${generated.text}` : "";
+  // questionGroupFormSchema requires >= 2 questions — a group that lost too
+  // many to verification isn't worth keeping even partially.
+  if (verifiedQuestions.length < 2) return { attempted: generated.questions.length, group: null };
 
-    const verifiedQuestions: GroupQuestionFormInput[] = [];
-    for (const q of generated.questions) {
-      if (!(await verifyQuestion(context, q))) continue;
-      verifiedQuestions.push({
-        prompt: q.question,
-        correctLabel: q.correctAnswer as GroupQuestionFormInput["correctLabel"],
-        explanationVi: q.explanation,
-        options: q.options.map((content, idx) => ({ label: OPTION_LABELS[idx], content })),
-      });
-    }
-
-    // questionGroupFormSchema requires >= 2 questions — a group that lost
-    // too many to verification isn't worth keeping even partially.
-    if (verifiedQuestions.length < 2) continue;
-
-    groups.push({
+  return {
+    attempted: generated.questions.length,
+    group: {
       part,
       format: GROUP_FORMAT[part] as QuestionGroupFormInput["format"],
       layout: "SINGLE",
@@ -249,8 +269,22 @@ export async function generateVerifiedGroups(
       difficulty,
       status: "DRAFT",
       questions: verifiedQuestions,
-    });
-  }
+    },
+  };
+}
+
+export async function generateVerifiedGroups(
+  part: GroupedGenerationPart,
+  difficulty: Difficulty,
+  groupCount: number
+): Promise<GroupedGenerationResult> {
+  // Groups are independent of each other too — generating/verifying all of
+  // them concurrently rather than one at a time is what keeps, say, a
+  // 3-group request from taking 3x as long as a single one.
+  const results = await Promise.all(Array.from({ length: groupCount }, () => generateAndVerifyOneGroup(part, difficulty)));
+
+  const attempted = results.reduce((sum, r) => sum + r.attempted, 0);
+  const groups = results.map((r) => r.group).filter((g): g is QuestionGroupFormInput => g !== null);
 
   return { attempted, groups };
 }
