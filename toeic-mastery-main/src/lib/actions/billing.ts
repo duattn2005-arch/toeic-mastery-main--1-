@@ -90,6 +90,9 @@ export async function declareBankTransferAction(planKey: ProPlanKey): Promise<Ac
 
 export interface PaymentStatusResult {
   status: "PENDING" | "SUCCESS" | "FAILED" | "REFUNDED";
+  /** ISO string (Date doesn't survive the server action boundary as-is) —
+   * null until status is SUCCESS. */
+  paidAt: string | null;
 }
 
 /**
@@ -102,9 +105,9 @@ export interface PaymentStatusResult {
  */
 export async function checkPaymentStatusAction(orderId: string): Promise<PaymentStatusResult | { error: string }> {
   const profile = await requireUser();
-  const payment = await db.payment.findUnique({ where: { orderId }, select: { userId: true, status: true } });
+  const payment = await db.payment.findUnique({ where: { orderId }, select: { userId: true, status: true, paidAt: true } });
   if (!payment || payment.userId !== profile.id) return { error: "Không tìm thấy đơn hàng" };
-  return { status: payment.status };
+  return { status: payment.status, paidAt: payment.paidAt?.toISOString() ?? null };
 }
 
 /** Dormant until a real VNPay merchant account exists — kept working and

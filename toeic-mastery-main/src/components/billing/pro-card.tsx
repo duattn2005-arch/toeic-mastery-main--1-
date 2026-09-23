@@ -59,6 +59,7 @@ export function ProCard({ offer }: { offer: NewMemberOfferState }) {
   const [pending, startTransition] = React.useTransition();
   const [order, setOrder] = React.useState<{ orderId: string; planKey: ProPlanKey; amount: number } | null>(null);
   const [confirmed, setConfirmed] = React.useState(false);
+  const [paidAt, setPaidAt] = React.useState<string | null>(null);
 
   const plan = PRO_PLANS[planKey];
   const displayPrice = offer.eligible ? discountedPriceVnd(planKey) : plan.amountVnd;
@@ -74,6 +75,7 @@ export function ProCard({ offer }: { offer: NewMemberOfferState }) {
       if ("error" in result) return; // transient/unexpected — just try again next tick
       if (result.status === "SUCCESS") {
         setConfirmed(true);
+        setPaidAt(result.paidAt);
         toast.success("Thanh toán thành công! Tài khoản của bạn đã được nâng cấp Pro 🎉");
       }
     }, PAYMENT_POLL_MS);
@@ -88,6 +90,7 @@ export function ProCard({ offer }: { offer: NewMemberOfferState }) {
         return;
       }
       setConfirmed(false);
+      setPaidAt(null);
       setOrder({ orderId: result.orderId, planKey, amount: result.amount });
     });
   }
@@ -110,6 +113,18 @@ export function ProCard({ offer }: { offer: NewMemberOfferState }) {
           <p className="text-sm text-muted-foreground">
             Tài khoản của bạn đã được nâng cấp <b>PRO ({PRO_PLANS[order.planKey].label})</b>.
           </p>
+
+          <div className="mt-2 w-full text-left">
+            <CopyableRow label="Mã thanh toán" value={order.orderId} />
+            <CopyableRow label="Số tiền" value={`${order.amount.toLocaleString("vi-VN")}₫`} />
+            <CopyableRow label="Gói" value={`Pro (${PRO_PLANS[order.planKey].label})`} />
+            <CopyableRow
+              label="Thời gian thanh toán"
+              value={paidAt ? new Date(paidAt).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" }) : "—"}
+            />
+            <CopyableRow label="Trạng thái" value="Thành công" />
+          </div>
+
           <Button type="button" size="lg" className="mt-2" onClick={() => window.location.reload()}>
             Bắt đầu dùng ngay
           </Button>
