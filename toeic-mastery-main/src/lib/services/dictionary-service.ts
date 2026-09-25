@@ -405,7 +405,10 @@ export class DictionaryService {
       return fromCachedRow(cached);
     }
 
-    let { result: fresh, providerName, lastError } = await this.fetchFromProviders(word);
+    const fetchResult = await this.fetchFromProviders(word);
+    let fresh = fetchResult.result;
+    let providerName = fetchResult.providerName;
+    const lastError = fetchResult.lastError;
 
     // Not found as typed — try a few common-inflection guesses (running ->
     // run, applications -> application) before giving up. Every provider
