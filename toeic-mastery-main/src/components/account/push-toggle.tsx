@@ -45,12 +45,12 @@ export function PushToggle() {
   }
 
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-soft">
-      <div className="flex items-start gap-3">
+    <div className="flex flex-col items-start gap-4 rounded-2xl border border-border bg-card p-5 shadow-soft sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-start gap-3">
         <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
           <Bell className="size-4" />
         </span>
-        <div>
+        <div className="min-w-0">
           <p className="text-sm font-medium">Thông báo nhắc học mỗi ngày</p>
           <p className="text-xs text-muted-foreground">
             Nhận thông báo đẩy nhắc bạn duy trì streak học tập. Hiện tại thông báo được gửi vào một khung giờ cố định
@@ -63,7 +63,7 @@ export function PushToggle() {
           )}
         </div>
       </div>
-      <Switch checked={subscribed} disabled={busy || permission === "denied"} onCheckedChange={handleChange} />
+      <Switch checked={subscribed} disabled={busy || permission === "denied"} onCheckedChange={handleChange} className="shrink-0" />
     </div>
   );
 }
