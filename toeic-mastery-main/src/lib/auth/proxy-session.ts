@@ -1,5 +1,6 @@
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 import { SESSION_COOKIE, SESSION_REFRESH_THRESHOLD_SEC, sessionCookieOptions, signSessionToken, verifySessionToken } from "@/lib/auth/session";
+import { internalTrackSecret } from "@/lib/internal-track-secret";
 
 const AUTH_ROUTES = ["/login", "/register", "/forgot-password", "/reset-password"];
 // "/practice" and "/practice/start" are deliberate exceptions to the
@@ -47,18 +48,19 @@ function withReferralCookie(response: NextResponse, code: string | null) {
  * original incoming request, not a proxy-internal fetch, so the recorded
  * address is the visitor's, not the server's. */
 function trackReferralClick(request: NextRequest, event: NextFetchEvent, code: string) {
-  const secret = process.env.INTERNAL_TRACK_SECRET;
-  if (!secret) return;
-
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "0.0.0.0";
   const userAgent = request.headers.get("user-agent") ?? "";
 
   event.waitUntil(
-    fetch(new URL("/api/referrals/click", request.url), {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-internal-secret": secret },
-      body: JSON.stringify({ code, ip, userAgent, path: request.nextUrl.pathname }),
-    }).catch(() => {})
+    internalTrackSecret()
+      .then((secret) =>
+        fetch(new URL("/api/referrals/click", request.url), {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-internal-secret": secret },
+          body: JSON.stringify({ code, ip, userAgent, path: request.nextUrl.pathname }),
+        })
+      )
+      .catch(() => {})
   );
 }
 

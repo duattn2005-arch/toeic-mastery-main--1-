@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { internalTrackSecret } from "@/lib/internal-track-secret";
 
 interface ClickPayload {
   code?: string;
@@ -15,7 +16,8 @@ interface ClickPayload {
  * fires this via `event.waitUntil` without inspecting the response. */
 export async function POST(request: NextRequest) {
   const secret = request.headers.get("x-internal-secret");
-  if (!secret || secret !== process.env.INTERNAL_TRACK_SECRET) {
+  const expected = await internalTrackSecret();
+  if (!secret || secret !== expected) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
