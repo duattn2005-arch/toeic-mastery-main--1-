@@ -74,6 +74,7 @@ export interface ReferralLeaderboardEntry {
   id: string;
   fullName: string | null;
   email: string;
+  copyCount: number;
   totalClicks: number;
   uniqueVisitors: number;
   successfulReferralCount: number;
@@ -81,9 +82,12 @@ export interface ReferralLeaderboardEntry {
 }
 
 /** Powers the owner-only /admin/referrals leaderboard — ranks every user who
- * has ever generated a referral click or a successful referral by reach
- * (uniqueVisitors first, since raw totalClicks is trivially inflated by one
- * person refreshing their own link; totalClicks still shown for context).
+ * has ever pressed "Sao chép" on their referral link, generated a referral
+ * click, or landed a successful referral. Sorted by copyCount first — the
+ * clearest "actively trying to spread this" signal, and the one place
+ * ReferralLinkCard writes to (see POST /api/referrals/copy) — then
+ * uniqueVisitors (raw totalClicks is trivially inflated by one person
+ * refreshing their own link, so it's shown for context only, not ranked on).
  * Fetches raw ReferralClick rows and dedupes fingerprintHash in JS rather
  * than a distinct-count SQL query — simplest option at this site's scale,
  * consistent with how analytics.ts already reduces raw rows in JS. */
@@ -104,9 +108,13 @@ export async function getReferralLeaderboard(): Promise<ReferralLeaderboardEntry
   const [profiles, commissionSums] = await Promise.all([
     db.profile.findMany({
       where: {
-        OR: [{ successfulReferralCount: { gt: 0 } }, { id: { in: [...totalClicksMap.keys()] } }],
+        OR: [
+          { successfulReferralCount: { gt: 0 } },
+          { referralLinkCopyCount: { gt: 0 } },
+          { id: { in: [...totalClicksMap.keys()] } },
+        ],
       },
-      select: { id: true, fullName: true, email: true, successfulReferralCount: true },
+      select: { id: true, fullName: true, email: true, successfulReferralCount: true, referralLinkCopyCount: true },
     }),
     db.commission.groupBy({
       by: ["referrerId"],
@@ -121,12 +129,13 @@ export async function getReferralLeaderboard(): Promise<ReferralLeaderboardEntry
       id: p.id,
       fullName: p.fullName,
       email: p.email,
+      copyCount: p.referralLinkCopyCount,
       totalClicks: totalClicksMap.get(p.id) ?? 0,
       uniqueVisitors: uniqueVisitorsMap.get(p.id)?.size ?? 0,
       successfulReferralCount: p.successfulReferralCount,
       totalCommissionEarned: commissionMap.get(p.id) ?? 0,
     }))
-    .sort((a, b) => b.uniqueVisitors - a.uniqueVisitors || b.totalClicks - a.totalClicks);
+    .sort((a, b) => b.copyCount - a.copyCount || b.uniqueVisitors - a.uniqueVisitors || b.totalClicks - a.totalClicks);
 }
 
 export interface CommissionsPageData {

@@ -15,6 +15,7 @@ export function ReferralLinkCard({ referralLink, referralCode }: { referralLink:
       setCopied(true);
       toast.success("Đã sao chép link giới thiệu");
       setTimeout(() => setCopied(false), 2000);
+      fetch("/api/referrals/copy", { method: "POST" }).catch(() => {});
     } catch {
       toast.error("Không thể sao chép, vui lòng sao chép thủ công");
     }

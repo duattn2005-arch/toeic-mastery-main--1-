@@ -335,6 +335,15 @@ model Profile {
   isLateAttribution       Boolean            @default(false) @map("is_late_attribution")
   firstProPaymentAt       DateTime?          @map("first_pro_payment_at")
   successfulReferralCount Int                @default(0) @map("successful_referral_count")
+  /**
+   * How many times THIS user has pressed "Sao chép" on their own referral
+   * link (ReferralLinkCard) — a proxy for "prepared to share it", not proof
+   * anyone actually pasted it anywhere (the clipboard after that point is
+   * invisible to any website). Incremented server-side by
+   * POST /api/referrals/copy, called fire-and-forget right after
+   * navigator.clipboard.writeText() succeeds client-side.
+   */
+  referralLinkCopyCount   Int                @default(0) @map("referral_link_copy_count")
   isFlaggedFraud          Boolean            @default(false) @map("is_flagged_fraud")
   fraudNote               String?            @map("fraud_note")
 

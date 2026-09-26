@@ -13,8 +13,11 @@ export default async function AdminReferralLeaderboardPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Bảng xếp hạng giới thiệu</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Ai đang lan truyền link giới thiệu mạnh nhất — xếp theo số người xem thực (fingerprint
-          khác nhau) từng click qua link của họ. Trang này chỉ chủ tài khoản mới xem được.
+          Ai đang lan truyền link giới thiệu mạnh nhất — xếp theo số lần bấm "Sao chép" link, sau
+          đó đến số người xem thực (fingerprint khác nhau) từng click qua link của họ. Lưu ý: bấm
+          Sao chép chỉ ghi nhận việc đã lấy link, không đảm bảo họ đã thực sự dán đi đâu — không
+          website nào theo dõi được clipboard sau khi rời trang. Trang này chỉ chủ tài khoản mới
+          xem được.
         </p>
       </div>
 
@@ -24,6 +27,7 @@ export default async function AdminReferralLeaderboardPage() {
             <tr className="border-b border-border text-left text-xs text-muted-foreground">
               <th className="px-4 py-3 font-medium">#</th>
               <th className="px-4 py-3 font-medium">Người dùng</th>
+              <th className="px-4 py-3 font-medium">Số lần bấm Sao chép</th>
               <th className="px-4 py-3 font-medium">Người xem thực</th>
               <th className="px-4 py-3 font-medium">Tổng lượt click</th>
               <th className="px-4 py-3 font-medium">Giới thiệu thành công</th>
@@ -38,7 +42,8 @@ export default async function AdminReferralLeaderboardPage() {
                   <p className="font-medium">{u.fullName || "—"}</p>
                   <p className="text-xs text-muted-foreground">{u.email}</p>
                 </td>
-                <td className="px-4 py-3 font-medium">{u.uniqueVisitors}</td>
+                <td className="px-4 py-3 font-medium">{u.copyCount}</td>
+                <td className="px-4 py-3 text-muted-foreground">{u.uniqueVisitors}</td>
                 <td className="px-4 py-3 text-muted-foreground">{u.totalClicks}</td>
                 <td className="px-4 py-3 text-muted-foreground">{u.successfulReferralCount}</td>
                 <td className="px-4 py-3 text-muted-foreground">
@@ -48,7 +53,7 @@ export default async function AdminReferralLeaderboardPage() {
             ))}
             {leaderboard.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                   Chưa có lượt click hay giới thiệu nào được ghi nhận.
                 </td>
               </tr>
