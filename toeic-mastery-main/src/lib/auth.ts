@@ -206,6 +206,14 @@ export function isSuperAdmin(profile: Pick<Profile, "email">): boolean {
   return profile.email === SUPER_ADMIN_EMAIL;
 }
 
+/** Gates pages meant for the single owner account only (e.g. the referral
+ * leaderboard) — stricter than requireAdmin, which every ADMIN passes. */
+export async function requireSuperAdmin(): Promise<Profile> {
+  const profile = await requireAdmin();
+  if (!isSuperAdmin(profile)) redirect("/admin");
+  return profile;
+}
+
 /** True while the user's plan is PRO and (if set) hasn't lapsed yet — a
  * null `proExpiresAt` means a lifetime/admin-granted Pro with no expiry. */
 export function isPro(profile: Pick<Profile, "plan" | "proExpiresAt">): boolean {

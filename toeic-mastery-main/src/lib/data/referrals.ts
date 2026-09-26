@@ -70,6 +70,65 @@ export async function getReferralOverview(profile: Profile): Promise<ReferralOve
   };
 }
 
+export interface ReferralLeaderboardEntry {
+  id: string;
+  fullName: string | null;
+  email: string;
+  totalClicks: number;
+  uniqueVisitors: number;
+  successfulReferralCount: number;
+  totalCommissionEarned: number;
+}
+
+/** Powers the owner-only /admin/referrals leaderboard — ranks every user who
+ * has ever generated a referral click or a successful referral by reach
+ * (uniqueVisitors first, since raw totalClicks is trivially inflated by one
+ * person refreshing their own link; totalClicks still shown for context).
+ * Fetches raw ReferralClick rows and dedupes fingerprintHash in JS rather
+ * than a distinct-count SQL query — simplest option at this site's scale,
+ * consistent with how analytics.ts already reduces raw rows in JS. */
+export async function getReferralLeaderboard(): Promise<ReferralLeaderboardEntry[]> {
+  const clicks = await db.referralClick.findMany({
+    select: { referrerProfileId: true, fingerprintHash: true },
+  });
+
+  const totalClicksMap = new Map<string, number>();
+  const uniqueVisitorsMap = new Map<string, Set<string>>();
+  for (const c of clicks) {
+    totalClicksMap.set(c.referrerProfileId, (totalClicksMap.get(c.referrerProfileId) ?? 0) + 1);
+    const set = uniqueVisitorsMap.get(c.referrerProfileId) ?? new Set<string>();
+    set.add(c.fingerprintHash);
+    uniqueVisitorsMap.set(c.referrerProfileId, set);
+  }
+
+  const [profiles, commissionSums] = await Promise.all([
+    db.profile.findMany({
+      where: {
+        OR: [{ successfulReferralCount: { gt: 0 } }, { id: { in: [...totalClicksMap.keys()] } }],
+      },
+      select: { id: true, fullName: true, email: true, successfulReferralCount: true },
+    }),
+    db.commission.groupBy({
+      by: ["referrerId"],
+      where: { status: { not: "CANCELLED" } },
+      _sum: { amount: true },
+    }),
+  ]);
+  const commissionMap = new Map(commissionSums.map((c) => [c.referrerId, c._sum.amount ?? 0]));
+
+  return profiles
+    .map((p) => ({
+      id: p.id,
+      fullName: p.fullName,
+      email: p.email,
+      totalClicks: totalClicksMap.get(p.id) ?? 0,
+      uniqueVisitors: uniqueVisitorsMap.get(p.id)?.size ?? 0,
+      successfulReferralCount: p.successfulReferralCount,
+      totalCommissionEarned: commissionMap.get(p.id) ?? 0,
+    }))
+    .sort((a, b) => b.uniqueVisitors - a.uniqueVisitors || b.totalClicks - a.totalClicks);
+}
+
 export interface CommissionsPageData {
   bankAccount: Awaited<ReturnType<typeof db.bankAccount.findUnique>>;
   withdrawals: Awaited<ReturnType<typeof db.withdrawal.findMany>>;

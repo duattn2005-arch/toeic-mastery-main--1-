@@ -6,10 +6,11 @@ import {
   CreditCard,
   LayoutDashboard,
   Layers,
+  Share2,
   Users,
   Wallet,
 } from "lucide-react";
-import { requireAdmin } from "@/lib/auth";
+import { isSuperAdmin, requireAdmin } from "@/lib/auth";
 
 const ADMIN_NAV = [
   { label: "Tổng quan", href: "/admin", icon: LayoutDashboard },
@@ -22,8 +23,13 @@ const ADMIN_NAV = [
   { label: "Thống kê", href: "/admin/analytics", icon: BarChart3 },
 ];
 
+// Chỉ chủ tài khoản (isSuperAdmin) thấy mục này — trang /admin/referrals tự
+// chặn bằng requireSuperAdmin nếu ai đó vào thẳng URL, đây chỉ là ẩn link.
+const SUPER_ADMIN_NAV = [{ label: "Bảng xếp hạng giới thiệu", href: "/admin/referrals", icon: Share2 }];
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  const nav = isSuperAdmin(admin) ? [...ADMIN_NAV, ...SUPER_ADMIN_NAV] : ADMIN_NAV;
 
   return (
     <div className="min-h-svh bg-background">
@@ -34,7 +40,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </Link>
           <p className="mb-3 px-3 text-xs font-semibold text-muted-foreground">QUẢN TRỊ</p>
           <nav className="flex flex-col gap-1">
-            {ADMIN_NAV.map((item) => (
+            {nav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
