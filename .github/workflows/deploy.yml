@@ -46,6 +46,16 @@ jobs:
 
             git pull origin main
 
+            # Sync INTERNAL_TRACK_SECRET (referral-click tracking's
+            # proxy<->route-handler shared secret, see src/lib/auth/proxy-
+            # session.ts) into the server's own .env — only appends when the
+            # GitHub secret is set AND .env doesn't already have this key, so
+            # this never overwrites a value set by hand and no-ops harmlessly
+            # on repos that haven't added the secret yet.
+            if [ -n "${{ secrets.INTERNAL_TRACK_SECRET }}" ] && ! grep -q '^INTERNAL_TRACK_SECRET=' .env 2>/dev/null; then
+              echo 'INTERNAL_TRACK_SECRET=${{ secrets.INTERNAL_TRACK_SECRET }}' >> .env
+            fi
+
             if [ -f pnpm-lock.yaml ]; then
               corepack enable && pnpm install --frozen-lockfile
             elif [ -f yarn.lock ]; then
